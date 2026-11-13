@@ -6,12 +6,26 @@ const toastRoot = document.getElementById('toast-root');
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// Companion link token: lets this browser join the same workspace as the
+// desktop companion on a deployed site. localStorage only, never committed.
+let linkToken = null;
+try { linkToken = localStorage.getItem('posty-link-token') || null; } catch { /* private mode */ }
+function setLinkToken(t) {
+  linkToken = t || null;
+  try {
+    if (t) localStorage.setItem('posty-link-token', t);
+    else localStorage.removeItem('posty-link-token');
+  } catch { /* private mode */ }
+}
+
 async function api(path, { method = 'GET', body, timeoutMs } = {}) {
   let res;
   try {
+    const headers = body !== undefined ? { 'content-type': 'application/json' } : {};
+    if (linkToken) headers['x-posty-token'] = linkToken;
     res = await fetch(path, {
       method,
-      headers: body !== undefined ? { 'content-type': 'application/json' } : {},
+      headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
       signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
     });
@@ -200,8 +214,12 @@ function itemCard(item) {
     ${!isStory && c.type === 'voice' ? '<p class="draft-meta">Spoken brain dump · transcribed with Muse Voice, in your words.</p>' : ''}
     ${isStory && s.why ? `<p class="why">${esc(s.why)}</p>` : ''}
     ${item.drafts?.length ? `<p class="draft-meta">${item.drafts.length} draft${item.drafts.length > 1 ? 's' : ''} · ${item.drafts.filter((d) => d.status === 'scheduled').length} scheduled</p>` : ''}
-    ${!isStory ? `<div class="btn-row"><button class="btn small secondary" data-cap-edit="${esc(item.id)}">Edit</button></div>
-    <div data-cap-editor="${esc(item.id)}" hidden>
+    <div class="btn-row">
+      ${!isStory ? `<button class="btn small secondary" data-cap-edit="${esc(item.id)}">Edit</button>` : ''}
+      ${!item.drafts?.length ? `<a class="btn small" href="#/story/${esc(item.id)}">Develop into drafts</a>` : ''}
+      <button class="btn small ghost" data-del-item="${esc(item.id)}">Delete</button>
+    </div>
+    ${!isStory ? `<div data-cap-editor="${esc(item.id)}" hidden>
       <label class="field"><span class="label">Title</span><input type="text" data-cap-title maxlength="220" value="${esc(c.title || '')}"></label>
       <label class="field"><span class="label">Text</span><textarea data-cap-text maxlength="4000" style="min-height:80px">${esc(c.text || '')}</textarea></label>
       <div class="btn-row"><button class="btn small" data-cap-save="${esc(item.id)}">Save changes</button><button class="btn small ghost" data-cap-cancel="${esc(item.id)}">Cancel</button></div>
@@ -1223,12 +1241,42 @@ async function viewSettings() {
         : me.oauthConfigured
           ? '<p>Not connected. Connect to enable real scheduling.</p><div class="btn-row"><a class="btn" href="/auth/buffer/start">Connect Buffer</a></div>'
           : '<p><span class="badge mock">Demo scheduling mode</span> The server has no Buffer OAuth app configured, so scheduling is simulated.</p>'}
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0">Companion link</h2>
+      <p class="lede">To see your desktop companion’s captures in this workspace on a deployed site, both need the same link. Enter a token you created on the server here, then the same token in the companion’s Server/token settings.</p>
+      ${linkToken
+        ? `<p>Linked with a saved token (<span class="mono">${esc(linkToken.slice(0, 4))}…</span>). Your captures land in this workspace.</p><div class="btn-row"><button class="btn secondary" id="link-forget">Unlink companion</button></div>`
+        : `<label class="stack">Link token<input id="link-token" class="input" type="password" autocomplete="off" placeholder="paste token from server owner"></label><div class="btn-row"><button class="btn" id="link-save">Link companion</button></div><p class="draft-meta" id="link-status"></p>`}
     </div>`;
   await viewSetup(p, document.getElementById('prefs-editor'), { heading: '', submitLabel: 'Save settings', stay: true });
   document.getElementById('prefs-disconnect')?.addEventListener('click', async () => {
     await api('/api/auth/disconnect', { method: 'POST' });
     await refreshMe();
     route();
+  });
+  document.getElementById('link-forget')?.addEventListener('click', async () => {
+    setLinkToken(null);
+    await refreshMe();
+    route();
+  });
+  document.getElementById('link-save')?.addEventListener('click', async () => {
+    const input = document.getElementById('link-token');
+    const status = document.getElementById('link-status');
+    const token = input?.value.trim();
+    if (!token) { if (status) status.textContent = 'Paste the token first.'; return; }
+    try {
+      if (status) status.textContent = 'Linking…';
+      // Verify against the server before storing: wrong tokens must not stick.
+      const res = await fetch('/api/link/adopt', { method: 'POST', headers: { 'content-type': 'application/json', 'x-posty-token': token }, body: '{}' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Not accepted (${res.status})`);
+      setLinkToken(token);
+      await refreshMe();
+      route();
+    } catch (e) {
+      if (status) status.textContent = `Couldn’t link: ${e.message}`;
+    }
   });
 }
 
@@ -1443,6 +1491,30 @@ window.addEventListener('hashchange', route);
 // Capture editing (e.g. fixing mistranscribed voice notes), wired once for
 // every view that renders item cards.
 document.addEventListener('click', async (e) => {
+  const delBtn = e.target.closest('[data-del-item]');
+  if (delBtn) {
+    const id = delBtn.dataset.delItem;
+    const card = delBtn.closest('[data-item]');
+    const title = card?.querySelector('.story-title')?.textContent?.trim() || 'this idea';
+    const close = openModal(`<h2>Delete this idea?</h2>
+      <p><strong>${esc(title.slice(0, 120))}</strong></p>
+      <p class="draft-meta">This permanently removes the idea, its perspective, and its drafts. Ideas with a draft queued in Buffer can’t be deleted.</p>
+      <div class="btn-row"><button class="btn ghost" data-x>Keep it</button><button class="btn danger" data-confirm-del>Delete idea</button></div>`);
+    modalRoot.querySelector('[data-x]').addEventListener('click', close);
+    modalRoot.querySelector('[data-confirm-del]').addEventListener('click', async (ev) => {
+      ev.target.disabled = true;
+      try {
+        await api(`/api/inbox/${id}`, { method: 'DELETE' });
+        close();
+        toast('Idea deleted.');
+        route();
+      } catch (err) {
+        close();
+        toast(err.message, 'error');
+      }
+    });
+    return;
+  }
   const editBtn = e.target.closest('[data-cap-edit]');
   const saveBtn = e.target.closest('[data-cap-save]');
   const cancelBtn = e.target.closest('[data-cap-cancel]');

@@ -136,6 +136,61 @@ test('unconfigured Vercel deployment fails writes with an actionable message', a
   }
 });
 
+test('DELETE /api/inbox/:id removes an idea permanently', async () => {
+  const created = await postCapture({ type: 'note', title: 'doomed idea', text: 'bye' });
+  const res = mockRes();
+  await handleNodeRequest(
+    bodyReq({ method: 'DELETE', url: `/api/inbox/${created.id}`, json: {} }),
+    res,
+  );
+  assert.equal(res.statusCode, 200);
+  const inbox = mockRes();
+  await handleNodeRequest(getReq('/api/inbox'), inbox);
+  assert.ok(!JSON.parse(inbox.body).items.some((i) => i.id === created.id));
+
+  const missing = mockRes();
+  await handleNodeRequest(
+    bodyReq({ method: 'DELETE', url: '/api/inbox/s_nope1234', json: {} }),
+    missing,
+  );
+  assert.equal(missing.statusCode, 404);
+});
+
+test('DELETE /api/inbox/:id refuses ideas with a queued draft', async () => {
+  const created = await postCapture({ type: 'note', title: 'queued idea', text: 'stays put' });
+  const gen = mockRes();
+  await handleNodeRequest(
+    bodyReq({ method: 'POST', url: `/api/inbox/${created.id}/drafts`, json: { channels: ['linkedin'] } }),
+    gen,
+  );
+  assert.equal(gen.statusCode, 200);
+  const draftId = JSON.parse(gen.body).item.drafts[0].id;
+  const appr = mockRes();
+  await handleNodeRequest(
+    bodyReq({ method: 'POST', url: `/api/drafts/${draftId}/approve`, json: {} }),
+    appr,
+  );
+  assert.equal(appr.statusCode, 200);
+  const sched = mockRes();
+  await handleNodeRequest(
+    bodyReq({ method: 'POST', url: `/api/drafts/${draftId}/schedule`, json: { confirmToken: JSON.parse(appr.body).confirmToken, idempotencyKey: 'del-guard-1' } }),
+    sched,
+  );
+  assert.equal(sched.statusCode, 200);
+  assert.equal(JSON.parse(sched.body).draft.status, 'scheduled');
+
+  const del = mockRes();
+  await handleNodeRequest(
+    bodyReq({ method: 'DELETE', url: `/api/inbox/${created.id}`, json: {} }),
+    del,
+  );
+  assert.equal(del.statusCode, 409);
+  assert.match(JSON.parse(del.body).error, /queued in Buffer/);
+  const inbox = mockRes();
+  await handleNodeRequest(getReq('/api/inbox'), inbox);
+  assert.ok(JSON.parse(inbox.body).items.some((i) => i.id === created.id)); // preserved
+});
+
 test('PATCH /api/inbox/:id rejects unknown ids, empties, and stories', async () => {
   const missing = mockRes();
   await handleNodeRequest(

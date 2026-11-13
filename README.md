@@ -145,7 +145,12 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
   Rebind live from the overlay's Hotkeys section (validated, instant,
   persisted; per-key active/not-registered status shown), or via
   `POSTY_HOTKEY_DUMP` / `POSTY_HOTKEY_HIGHLIGHT`. The web shortcuts guide
-  (`?`) shows the overlay's effective pair live.
+  (`?`) shows the overlay's effective pair live. Point it at a deployed
+  server with `POSTY_URL`, and join that server's workspace with a companion
+  link token: set `OVERLAY_TOKENS` on the server, paste the same token into
+  the deployed site's Settings → Companion link and the overlay's
+  Server/token dialog. (Local dev needs no token — same-machine clients
+  already share the local workspace.)
 - **Browser extension (`extension/`, Chrome/Edge):** side panel with
   Today/Ideas/Drafts, a keyboard shortcut or right-click to send a highlight
   to Ideas. Effective bindings are shown in the extension's options page
@@ -170,7 +175,8 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
       versions restore; duplicate/delete work.
 - [ ] Ideas: note/link/voice captures save; captures edit (title + text);
       link captures fetch excerpts; private-source review prompt appears
-      before drafting.
+      before drafting; Develop into drafts opens the draft flow; Delete
+      removes with a confirm, and refuses ideas with a queued draft.
 - [ ] Ideas mic: record → transcribe (staged, timed out, retried) → saved
       voice note with provenance; origin filter lists each kind.
 - [ ] Ask: typed question returns briefed stories with links; voice asks
