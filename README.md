@@ -5,23 +5,18 @@ own perspective, turn them into channel-specific social drafts, and schedule
 approved drafts through **Buffer**. Built for the **Buffer Commit 2026**
 hackathon.
 
-Principles: Posty is a thoughtful assistant, not an autoposter. You control
-your profession, interests, point of view, wording, and approval. **Nothing is
-ever scheduled without your explicit approval.** Posty never invents opinions,
-experiences, sources, dates, or metrics.
+Principles: Posty is a thoughtful assistant. You control your profession, 
+interests, point of view, wording, and approval. 
 
 ## Submission checklist (Buffer Commit 2026)
 
 - **Works end to end:** setup → discovery → take → drafts → approve → confirm →
-  scheduled. See *Judge path* below (5–10 minutes, zero keys).
+  scheduled. (5–10 minutes, zero keys).
 - **Buffer OAuth:** Authorization Code + PKCE, confidential client; no
   key-paste UI anywhere, secrets server-side only.
 - **Real API calls:** live GraphQL `createPost` (queue + scheduled modes) and
   channel lookup against the connected account; every result is labeled real
   vs demo, and typed mutation errors are surfaced, not just HTTP status.
-- **Publicly available:** deployable to Vercel (see *Deployment notes*); local
-  runs serve `http://localhost:3000` plus an `https` listener for the Buffer
-  callback (Buffer rejects `http` redirect URIs).
 
 ## Quick start
 
@@ -31,8 +26,8 @@ Requirements: Node.js 18+ (developed on Node 24). Zero npm dependencies.
 npm start
 ```
 
-Your browser opens [http://localhost:3000](http://localhost:3000) automatically
-(`POSTY_NO_OPEN=1` disables this). If the port is taken, the server prints the
+Your browser opens (http://localhost:3000) automatically. 
+If the port is taken, the server prints the
 exact commands to free it instead of a stack trace.
 
 On Windows, `npm start` also launches the **desktop companion** (sidebar with
@@ -40,37 +35,31 @@ global hotkeys): straight away if it's built, otherwise it builds in the
 background when Rust is installed. `POSTY_NO_DESKTOP=1` opts out; see
 `desktop/README.md`.
 
-Run checks with `npm test` (44 tests, built-in Node runner, no dependencies)
-and `cargo test --manifest-path desktop/src-tauri/Cargo.toml` (5 Rust tests).
-
 On first run you pick a profession, select/edit interests, and set tone and
 length. Everything else flows from there: Today → story → your take → drafts →
-approve → confirm → scheduled.
+approve → confirm → scheduled. 
 
-## Judge path (5–10 minutes, zero keys required)
+## Setup Guide: 
 
 1. Open the app and complete setup (profession + interests + pillars, tone,
    length, channels, routine, optional style samples, never-post topics).
 2. In **Today**, press **Find stories** — live stories with genuine links,
    sources, dates, faithful summaries, and a “why this matches you” line.
-   (With `EXA_API_KEY`, general web search joins HN/GDELT/Reddit.)
 3. Open a story: drafts generate for your preferred channels, one tab each.
    Answer the **grounded take-questions** (written about that story's own
-   claims — click one to start answering), save your take, then **Refine with
-   my perspective** for a draft weaving the summary with your whole take (the
-   initial version is kept). Edit, restore, duplicate, delete, or skip each
+   claims click one to start answering), save your take, then **Refine with
+   my perspective** for a draft weaving the summary with your whole take.
+   Edit, restore, duplicate, delete, or skip each
    channel independently.
-4. In **Ask**, question anything by text or voice (staged: transcribe, then
-   search — the heard words stay editable). Briefs with links arrive, each
+4. In **Ask**, question anything by text or voice. Briefs with links arrive, each
    openable into the same take → draft → refine flow.
-5. In **Ideas**, brain-dump by typing or speaking (transcripts are editable,
-   before and after saving); filter by origin. In **Sources**, see every
+5. In **Ideas**, brain-dump by typing or speaking; filter by origin. In **Sources**, see every
    connector's honest status, pause providers, or load the labeled demo.
    **Routine** runs on demand only; **Calendar** shows the week, filters,
    and cadence progress.
 6. Press **Approve & add to Buffer queue** on one draft: pick a **Buffer
    channel**, choose queue or a specific time, see the **exact text** you are
-   approving, then **Confirm** (sticky footer — the buttons can't scroll away).
+   approving, then **Confirm**.
    The result states plainly whether scheduling was **real (Buffer)** or
    **demo (not sent)** — real scheduling needs the Buffer OAuth setup below.
 
@@ -82,9 +71,7 @@ this setup the app runs in clearly labeled **demo scheduling mode**.
 1. In Buffer, go to Settings → API and register an OAuth app (confidential
    client). Buffer requires **https** redirect URIs — plain `http://localhost`
    is rejected, which surfaces as a generic error page and no callback.
-   For local runs register `https://localhost:3443/auth/buffer/callback`
-   (served by Posty's TLS listener, see below); for a deployment register
-   your public URL's `/auth/buffer/callback`.
+   Add posty's redirect URI: posty-three.vercel.app, and your local host's redirect URI if you're running it locally. 
 2. Copy `.env.example` to `.env` and set `BUFFER_CLIENT_ID`,
    `BUFFER_CLIENT_SECRET`, and `BUFFER_REDIRECT_URI` (must match the registered
    URI exactly). Set a long random `SESSION_SECRET`.
@@ -101,43 +88,25 @@ this setup the app runs in clearly labeled **demo scheduling mode**.
 
 No key-paste UI exists anywhere: secrets stay server-side in env vars.
 
-## Environment variables
-
-| Variable | Required | Purpose |
-|---|---|---|
-| `PORT` | no (3000) | HTTP port |
-| `TLS_PORT` / `TLS_PFX`+`TLS_PASSPHRASE` (or `TLS_KEY`/`TLS_CERT`) | for local OAuth | HTTPS listener for the Buffer callback (Buffer rejects http); off when unset |
-| `SESSION_SECRET` | recommended (Vercel: required) | Signs session cookies; random per restart if unset |
-| `DATA_DIR` | no (`./data`) | Per-user file store location |
-| `BUFFER_CLIENT_ID` / `BUFFER_CLIENT_SECRET` / `BUFFER_REDIRECT_URI` | for real scheduling | Buffer OAuth app credentials |
-| `EXA_API_KEY` | no | General web search + structured article briefs; everything else is keyless |
-| `LLM_API_KEY` / `LLM_ENDPOINT` / `LLM_MODEL` / `LLM_VOICE_MODEL` | no | Muse drafting, comment snapshots, take-questions, voice transcription; template engine is the fallback |
-| `NEWS_API_KEY` | no | Enables NewsAPI adapter for **local dev only** (terms not cleared for deploy; results labeled) |
-| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Vercel only | KV store (auto-set when you connect a KV database); local runs use files |
-| `POSTY_NO_DESKTOP` | no | `1` stops `npm start` auto-launching the desktop companion |
-| `POSTY_HOTKEY_DUMP` / `POSTY_HOTKEY_HIGHLIGHT` | no | Override desktop hotkeys (`"ctrl+shift+space"` syntax; env wins over the overlay's saved pair) |
-| `POSTY_URL` | no | Server URL the desktop companion talks to |
-| `MOCK_FAIL` | no | `1` forces mock scheduling to fail so the error/retry UI can be tested (labeled simulated) |
-
 ## Real vs demo behavior
 
 - **Story search:** always live (Hacker News + GDELT + Reddit inspiration; Exa
   joins when keyed). No fabricated stories. Provider hiccups appear as honest
   warnings, never invented fill-ins.
-- **Drafts / snapshots / take-questions:** Muse when `LLM_*` is configured,
+- **Drafts / snapshots / take-questions:** Uses Meta's Muse when it is configured,
   otherwise the built-in template engine. The UI never claims AI it didn't use.
 - **Voice:** Muse transcription when configured; otherwise the mic states
-  plainly that a key is needed and typing works regardless.
+  plainly that a key is needed and typing works regardless. 
 - **Scheduling:** real Buffer calls when OAuth is configured and you connected;
   otherwise simulated and labeled “Demo scheduling — NOT sent to Buffer”.
 - **Routine:** settings + “Run routine now” only. The saved cadence is labeled
-  on-demand; no background job runs.
+  on-demand; no background job runs. 
 
 ## Story providers
 
-- **Hacker News Search (default):** keyless, date-ordered, 90-day recency floor
+- **Hacker News Search :** keyless, date-ordered, 90-day recency floor
   with fallback. Discussion pages get grounded LLM comment snapshots instead
-  of scraped junk.
+  of scraped junk.  
 - **Exa (paid, keyed):** general web search (`/search`) plus structured
   article briefs (`/contents`: TL;DR + key points ≈80% + conclusion) with
   meta-junk filtering. One batched call per find/ask, cached; failures fall
@@ -152,7 +121,6 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
   “viral” claims (the feed provides none). Reddit’s JSON search needs OAuth,
   so an authenticated upgrade path (Reddit app credentials) is the natural
   follow-up for richer signals.
-- **NewsAPI:** stubbed behind `NEWS_API_KEY` for local comparison only.
 
 ## Summaries, prompts, and style references
 
@@ -160,8 +128,8 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
   linked page itself: the publisher's own description or the opening sentences,
   verbatim and labeled (“Opening excerpt”). Exa stories get structured briefs.
   Bot-guarded pages keep an honest “No summary available” label.
-- **Take-questions** are written per story/note about its own specific claims
-  (never "this topic"), cached 24h, with the generic lists as the instant
+- **Take-questions** are written per story/note about its own specific claims,
+  cached 24h, with the generic lists as the instant
   fallback. Clicking one starts the answer in the take box.
 - **Style references** are strictly opt-in: paste 1–2 samples of your own
   writing plus style notes, and enable the toggle to let drafts mirror your
