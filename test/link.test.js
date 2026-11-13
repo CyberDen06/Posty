@@ -9,12 +9,20 @@ import fs from 'node:fs';
 const tmpData = path.join(os.tmpdir(), `posty-link-test-${process.pid}`);
 process.env.DATA_DIR = tmpData;
 process.env.OVERLAY_TOKENS = 'test-token-alpha,test-token-beta';
+process.env.SESSION_SECRET = 'link-test-secret';
 test.after(() => {
   fs.rmSync(tmpData, { recursive: true, force: true });
   delete process.env.OVERLAY_TOKENS;
+  delete process.env.SESSION_SECRET;
 });
 
 const { handleNodeRequest } = await import('../lib/app.js');
+const { writeDoc } = await import('../lib/store.js');
+const { hmacSha256 } = await import('../lib/util.js');
+
+function signedCookie(sid) {
+  return `posty_sid=${sid}.${hmacSha256('link-test-secret', `sid:${sid}`)}`;
+}
 
 function mockReq({ method = 'GET', url = '/', headers = {}, remoteAddress = '203.0.113.9' } = {}) {
   return { method, url, headers: { host: 'posty.example', ...headers }, socket: { remoteAddress } };
@@ -126,6 +134,44 @@ test('same token shares one workspace; other tokens are isolated', async () => {
     { method: 'GET', url: '/api/inbox', headers: { 'x-posty-token': 'intruder' } },
   );
   assert.equal(stranger.status, 401);
+});
+
+test('adopt carries the Buffer connection without overwriting', async () => {
+  const src = 'test-cookie-src-01';
+  await writeDoc('session', src, 'session', {
+    sid: src,
+    createdAt: new Date().toISOString(),
+    buffer: { accessToken: 'src-token', refreshToken: 'src-refresh', organization: { id: 'org1', name: 'Org' }, needsReauth: false },
+  });
+  const r = await call(
+    { method: 'POST', url: '/api/link/adopt', headers: { 'x-posty-token': 'test-token-beta', cookie: signedCookie(src) } },
+    {},
+  );
+  assert.equal(r.status, 200);
+  assert.equal(r.data.bufferCarried, true);
+  const me = await call(
+    { method: 'GET', url: '/api/me', headers: { 'x-posty-token': 'test-token-beta' } },
+  );
+  assert.equal(me.data.connected, true);
+  assert.equal(me.data.organization?.id, 'org1');
+
+  // A later adopt from a differently-connected browser must not clobber it.
+  const src2 = 'test-cookie-src-02';
+  await writeDoc('session', src2, 'session', {
+    sid: src2,
+    createdAt: new Date().toISOString(),
+    buffer: { accessToken: 'other-token', organization: null, needsReauth: false },
+  });
+  const r2 = await call(
+    { method: 'POST', url: '/api/link/adopt', headers: { 'x-posty-token': 'test-token-beta', cookie: signedCookie(src2) } },
+    {},
+  );
+  assert.equal(r2.status, 200);
+  assert.equal(r2.data.bufferCarried, false);
+  const me2 = await call(
+    { method: 'GET', url: '/api/me', headers: { 'x-posty-token': 'test-token-beta' } },
+  );
+  assert.equal(me2.data.organization?.id, 'org1'); // original kept
 });
 
 test('preflight allows the link-token header for the overlay webview', async () => {
