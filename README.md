@@ -195,25 +195,6 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
 - [ ] Never-post topics filter discovery and block drafting with an explanation.
 - [ ] Neutral drafts contain no first-person experience claims (`npm test`).
 
-## Deployment notes
-
-- **Local / single VM:** `npm start`, health check `GET /healthz`, file store
-  under `./data`. A `Dockerfile` is included (single instance, `/data` volume).
-- **Vercel (recommended for judging):** import the repo, add a KV database in
-  the Storage tab and connect it (sets `KV_REST_API_URL`/`KV_REST_API_TOKEN`),
-  then set `SESSION_SECRET` (**required** — instances share no memory),
-  `BUFFER_CLIENT_ID`, `BUFFER_CLIENT_SECRET`,
-  `BUFFER_REDIRECT_URI=https://<your-app>.vercel.app/auth/buffer/callback`,
-  plus `EXA_API_KEY` and the `LLM_*` vars. All routes run through
-  `api/index.js` (see `vercel.json`); the same handler serves local and
-  serverless.
-- Register **both** redirect URIs in the Buffer OAuth app: the local
-  `https://localhost:3443/auth/buffer/callback` and the Vercel one.
-- Serverless caveat: per-instance guards (token-refresh and schedule
-  serialization) are best-effort across instances; the UI disables
-  double-submit, scheduling stays idempotent per draft, and expired grants
-  recover via reconnect.
-
 ## Operating cost
 
 List prices at build time (verify on the dashboards before budgeting):
