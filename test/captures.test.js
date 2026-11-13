@@ -111,6 +111,31 @@ test('POST /api/voice/transcribe validates audio before touching the network', a
   assert.equal(res.statusCode, 400); // content-type is JSON, not audio/wav
 });
 
+test('unconfigured Vercel deployment fails writes with an actionable message', async () => {
+  const savedVercel = process.env.VERCEL;
+  const savedUrl = process.env.KV_REST_API_URL;
+  const savedToken = process.env.KV_REST_API_TOKEN;
+  const savedData = process.env.DATA_DIR;
+  process.env.VERCEL = '1';
+  delete process.env.KV_REST_API_URL;
+  delete process.env.KV_REST_API_TOKEN;
+  // Fresh store dir: earlier tests in this file already created the shared
+  // loopback session, which would skip the write we want to exercise.
+  process.env.DATA_DIR = `${tmpData}-vercel`;
+  try {
+    const res = mockRes();
+    await handleNodeRequest(getReq('/api/me'), res); // getSession saves → writeDoc
+    assert.equal(res.statusCode, 500);
+    assert.match(JSON.parse(res.body).error, /connect a Vercel KV database/);
+  } finally {
+    if (savedVercel !== undefined) process.env.VERCEL = savedVercel;
+    else delete process.env.VERCEL;
+    if (savedUrl !== undefined) process.env.KV_REST_API_URL = savedUrl;
+    if (savedToken !== undefined) process.env.KV_REST_API_TOKEN = savedToken;
+    process.env.DATA_DIR = savedData;
+  }
+});
+
 test('PATCH /api/inbox/:id rejects unknown ids, empties, and stories', async () => {
   const missing = mockRes();
   await handleNodeRequest(

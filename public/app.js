@@ -1488,7 +1488,8 @@ document.addEventListener('keydown', (e) => {
     meta = await api('/api/meta');
     await refreshMe();
   } catch (err) {
-    view.innerHTML = `<div class="error-box" role="alert"><h3>Posty server unreachable</h3><p>${esc(err.message)}</p><p>Start the server with <code>npm start</code> and reload.</p></div>`;
+    const isLocal = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+    view.innerHTML = `<div class="error-box" role="alert"><h3>Posty server unreachable</h3><p>${esc(err.message)}</p><p>${isLocal ? 'Start the server with <code>npm start</code> and reload.' : 'If you own this deployment, check its configuration (storage, environment variables) and redeploy.'}</p></div>`;
     return;
   }
   if (!location.hash) location.hash = me.setupDone ? '#/today' : '#/setup';
