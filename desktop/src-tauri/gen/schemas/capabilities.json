@@ -1,0 +1,1 @@
+{"main-capability":{"identifier":"main-capability","description":"Overlay and widget window controls for the Posty desktop companion.","local":true,"windows":["overlay","widget"],"permissions":["core:window:allow-show","core:window:allow-hide","core:window:allow-close","core:window:allow-set-focus"]}}

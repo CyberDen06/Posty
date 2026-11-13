@@ -1,0 +1,15 @@
+{
+  "name": "posty",
+  "version": "0.1.0",
+  "description": "Posty — personal content research agent: find industry stories, add your take, draft channel-specific posts, schedule via Buffer.",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/providers.test.js test/cors.test.js test/desktop.test.js test/captures.test.js test/prompts.test.js test/voice.test.js",
+    "desktop:build": "cargo build --manifest-path desktop/src-tauri/Cargo.toml"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Posty companion",
+  "version": "0.1.0",
+  "description": "Send highlights to Posty Ideas and browse Today, Ideas, and Drafts in a side panel.",
+  "permissions": ["sidePanel", "contextMenus", "storage", "scripting", "activeTab"],
+  "host_permissions": ["http://localhost:3000/*", "http://127.0.0.1:3000/*"],
+  "optional_host_permissions": ["https://*/*"],
+  "background": { "service_worker": "background.js" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "action": { "default_title": "Posty", "default_popup": "sidepanel.html" },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "_execute_side_panel": {
+      "suggested_key": { "default": "Alt+Shift+P" },
+      "description": "Open the Posty side panel"
+    },
+    "capture-selection": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Send the selected text to Posty Ideas (works while the browser is focused)"
+    }
+  }
+}

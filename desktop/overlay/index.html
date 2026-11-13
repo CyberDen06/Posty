@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Posty brain dump</title>
+<style>
+  :root { --bg: #faf7f1; --surface: #fffdf9; --ink: #23272b; --muted: #6b7280; --primary: #1d4d3a; --mint: #dcefe4; --line: #e5ddcf; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: ui-sans-serif, system-ui, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); font-size: 14px; }
+  .wrap { padding: 14px 16px 16px; max-width: 440px; margin: 0 auto; }
+  h1 { font-size: 1.05rem; margin: 0 0 2px; }
+  .sub { color: var(--muted); font-size: 0.8rem; margin: 0 0 10px; }
+  .tabs { display: flex; gap: 6px; margin: 10px 0; }
+  .tab { flex: 1; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px; cursor: pointer; font-weight: 650; color: var(--muted); }
+  .tab[aria-selected="true"] { background: var(--primary); border-color: var(--primary); color: #fff; }
+  label { display: block; margin: 8px 0 2px; font-weight: 600; font-size: 0.8rem; }
+  input[type="text"], textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; background: var(--surface); }
+  textarea { min-height: 110px; resize: vertical; }
+  .row { display: flex; gap: 8px; margin-top: 10px; }
+  .btn { flex: 1; border: 0; border-radius: 8px; padding: 9px; font-weight: 700; cursor: pointer; background: var(--primary); color: #fff; }
+  .btn.secondary { background: var(--mint); color: var(--primary); }
+  .btn:disabled { opacity: 0.55; cursor: default; }
+  .status { font-size: 0.8rem; color: var(--muted); margin-top: 8px; min-height: 1.2em; }
+  .status.ok { color: var(--primary); font-weight: 600; }
+  .status.err { color: #9b2c2c; }
+  .from-highlight { background: var(--mint); border-radius: 8px; padding: 6px 10px; font-size: 0.78rem; margin-top: 8px; display: none; }
+  details { margin-top: 12px; font-size: 0.78rem; color: var(--muted); }
+  details input { margin-top: 4px; }
+  kbd { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: 0.75rem; }
+  .hk-state { font-weight: 400; font-size: 0.72rem; }
+  .hk-state.on { color: var(--primary); }
+  .hk-state.off { color: #9b2c2c; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Brain dump</h1>
+  <p class="sub">Speak or type — it lands in Posty Ideas.</p>
+  <div class="tabs" role="tablist">
+    <button class="tab" id="tab-type" role="tab" aria-selected="true">Type it</button>
+    <button class="tab" id="tab-speak" role="tab" aria-selected="false">Speak it</button>
+  </div>
+  <div id="pane-type">
+    <div class="from-highlight" id="hl-note">From your highlight — edit, then save.</div>
+    <label for="f-title">Title (optional)</label>
+    <input type="text" id="f-title" maxlength="220" placeholder="What is this about?">
+    <label for="f-text">Idea</label>
+    <textarea id="f-text" maxlength="4000" placeholder="The details, in your own words…"></textarea>
+    <div class="row"><button class="btn" id="btn-save">Save to Ideas</button></div>
+  </div>
+  <div id="pane-speak" hidden>
+    <p class="sub">Press record, talk (up to 2 min), then stop. Transcribed and saved.</p>
+    <div class="row"><button class="btn" id="btn-rec">Record</button></div>
+    <div id="voice-result"></div>
+  </div>
+  <p class="status" id="status" role="status"></p>
+  <div class="row">
+    <button class="btn secondary" id="btn-sidebar">Open sidebar</button>
+    <button class="btn secondary" id="btn-hide">Hide (<kbd>Esc</kbd>)</button>
+  </div>
+  <p class="sub" id="hk-hint" style="margin-top:10px">Global hotkeys, from any app: <kbd>ctrl+shift+space</kbd> this overlay · <kbd>ctrl+shift+h</kbd> capture highlight</p>
+  <details id="hk-wrap">
+    <summary>Hotkeys</summary>
+    <label for="f-hk-dump">Show / hide this overlay <span class="hk-state" id="hk-state-dump"></span></label>
+    <input type="text" id="f-hk-dump" placeholder="ctrl+shift+space" autocapitalize="off" spellcheck="false">
+    <label for="f-hk-hl">Capture highlight to Ideas <span class="hk-state" id="hk-state-hl"></span></label>
+    <input type="text" id="f-hk-hl" placeholder="ctrl+shift+h" autocapitalize="off" spellcheck="false">
+    <p class="sub">Modifiers plus one key, e.g. ctrl+shift+space or alt+f9. Applies instantly and is remembered.</p>
+    <div class="row"><button class="btn secondary" id="btn-hk-save">Save hotkeys</button></div>
+  </details>
+  <details>
+    <summary>Server</summary>
+    <input type="text" id="f-server" placeholder="http://127.0.0.1:3000">
+    <div class="row"><button class="btn secondary" id="btn-quit">Quit Posty desktop</button></div>
+  </details>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  // Tauri v2 injects __TAURI_INTERNALS__ (window.__TAURI__ is v1-only).
+  const tauri = window.__TAURI_INTERNALS__ || null;
+  const invoke = tauri
+    ? ((cmd, args) => tauri.invoke(cmd, args || {}))
+    : (async () => { throw new Error('no Tauri bridge'); });
+  // Hide via a Rust command. No window.close() fallback: it cannot hide a
+  // window the script did not open, and in some WebView2 states it perturbs
+  // the window (observed: minimize) instead of hiding it.
+  async function hideOverlay() {
+    stopRec();
+    try {
+      await invoke('hide_overlay');
+    } catch (err) {
+      say('Could not hide (' + ((err && err.message) || err || 'unknown error') + '). Click the overlay first, then try again.', 'err');
+    }
+  }
+
+  let server = localStorage.getItem('postyUrl') || '';
+  (async () => {
+    if (!server) { try { server = await invoke('server_url') || ''; } catch { /* browser preview */ } }
+    if (!server) server = 'http://127.0.0.1:3000';
+    $('f-server').value = server;
+  })();
+  $('f-server').addEventListener('change', (e) => {
+    server = e.target.value.trim().replace(/\/$/, '') || 'http://127.0.0.1:3000';
+    localStorage.setItem('postyUrl', server);
+  });
+
+  function say(msg, kind = '') {
+    const el = $('status');
+    el.textContent = msg;
+    el.className = `status ${kind}`;
+  }
+
+  // Tabs
+  const panes = { type: $('pane-type'), speak: $('pane-speak') };
+  for (const name of Object.keys(panes)) {
+    $(`tab-${name}`).addEventListener('click', () => {
+      for (const n of Object.keys(panes)) {
+        $(`tab-${n}`).setAttribute('aria-selected', n === name);
+        panes[n].hidden = n !== name;
+      }
+      if (name !== 'speak') stopRec();
+    });
+  }
+
+  // Pending highlight from the global hotkey (polled; no event permissions needed).
+  // Failures are counted, not swallowed: a dead desktop link must say so.
+  let bridgeFails = 0;
+  setInterval(async () => {
+    try {
+      const text = await invoke('get_pending');
+      bridgeFails = 0;
+      if (text) {
+        $('tab-type').click();
+        $('f-text').value = text;
+        $('hl-note').style.display = 'block';
+        say('Highlight captured — edit and save, or speak instead.');
+      }
+    } catch {
+      bridgeFails += 1;
+      if (bridgeFails === 3) say('Desktop link unavailable — restart the Posty app.', 'err');
+    }
+  }, 250);
+
+  async function postJson(path, body) {
+    const res = await fetch(server + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+    return data;
+  }
+
+  $('btn-save').addEventListener('click', async () => {
+    say('Saving…');
+    try {
+      await postJson('/api/captures', { type: 'note', title: $('f-title').value.trim(), text: $('f-text').value.trim() });
+      $('f-title').value = '';
+      $('f-text').value = '';
+      $('hl-note').style.display = 'none';
+      say('Saved to Ideas.', 'ok');
+    } catch (err) { say(err.message, 'err'); }
+  });
+
+  // WAV encoder (16-bit PCM mono): transcription accepts WAV only.
+  function encodeWav(samples, sampleRate) {
+    const buf = new ArrayBuffer(44 + samples.length * 2);
+    const v = new DataView(buf);
+    const wstr = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    wstr(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true); wstr(8, 'WAVE'); wstr(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * 2, true);
+    v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+    wstr(36, 'data'); v.setUint32(40, samples.length * 2, true);
+    for (let i = 0; i < samples.length; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+
+  let rec = null;
+  function stopRec() {
+    if (!rec) return;
+    clearInterval(rec.timer);
+    try { rec.proc.disconnect(); } catch { /* stopped */ }
+    try { rec.stream.getTracks().forEach((t) => t.stop()); } catch { /* stopped */ }
+    rec.ctx.close().catch(() => {});
+    rec = null;
+  }
+  $('btn-rec').addEventListener('click', async () => {
+    const btn = $('btn-rec');
+    if (rec) {
+      btn.disabled = true;
+      say('Encoding…');
+      const { chunks, rate } = rec;
+      stopRec();
+      const flat = new Float32Array(chunks.reduce((n, c) => n + c.length, 0));
+      let o = 0;
+      for (const c of chunks) { flat.set(c, o); o += c.length; }
+      say('Transcribing…');
+      try {
+        const res = await fetch(server + '/api/voice/transcribe', { method: 'POST', headers: { 'content-type': 'audio/wav' }, body: encodeWav(flat, rate), signal: AbortSignal.timeout(150000) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `Transcription failed (${res.status})`);
+        const escT = (s) => String(s ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+        $('voice-result').innerHTML = `<label for="voice-edit">Transcript — fix any wrong words, then save</label><textarea id="voice-edit">${escT(data.transcript)}</textarea><div class="row"><button class="btn" id="btn-voice-save">Save to Ideas</button></div>`;
+        $('btn-voice-save').addEventListener('click', async () => {
+          const text = $('voice-edit').value.trim();
+          if (!text) { say('Nothing to save — the transcript is empty.', 'err'); return; }
+          say('Saving…');
+          try {
+            const first = text.split(/(?<=[.!?])\s+/)[0] || text;
+            const res2 = await fetch(server + '/api/captures', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'voice', title: first.length > 70 ? first.slice(0, 67) + '…' : first, text }) });
+            const payload = await res2.json().catch(() => ({}));
+            if (!res2.ok) throw new Error(payload.error || `Could not save (${res2.status})`);
+            $('voice-result').innerHTML = '';
+            say('Saved to Ideas — find it in the Ideas tab.', 'ok');
+          } catch (err) { say(err.message, 'err'); }
+        });
+        say('Transcript ready — review it, then Save to Ideas.', 'ok');
+      } catch (err) { say(err?.name === 'TimeoutError' || err?.name === 'AbortError' ? 'Transcription took too long — try a shorter recording.' : err.message, 'err'); }
+      btn.disabled = false;
+      btn.textContent = 'Record';
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) { say('No microphone in this view — type instead.', 'err'); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      const proc = ctx.createScriptProcessor(4096, 1, 1);
+      const chunks = [];
+      proc.onaudioprocess = (e) => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      ctx.createMediaStreamSource(stream).connect(proc);
+      proc.connect(ctx.destination);
+      const startedAt = Date.now();
+      const timer = setInterval(() => {
+        const s = Math.floor((Date.now() - startedAt) / 1000);
+        say(`Recording… ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} (max 2:00)`);
+        if (s >= 120) btn.click();
+      }, 500);
+      rec = { ctx, stream, proc, chunks, rate: ctx.sampleRate, timer };
+      btn.textContent = 'Stop & save';
+      say('Recording… 0:00 (max 2:00)');
+    } catch (err) {
+      say(err?.name === 'NotAllowedError' ? 'Microphone denied — allow it or type instead.' : `Could not record (${err.message}).`, 'err');
+    }
+  });
+
+  // Hotkey cue + editor: show the effective pair (env/file may override
+  // the defaults), and let the user rebind both live from here.
+  const escHtml = (s) => String(s ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+  function renderHotkeyHint(dump, hl) {
+    $('hk-hint').innerHTML = `Global hotkeys, from any app: <kbd>${escHtml(dump)}</kbd> this overlay · <kbd>${escHtml(hl)}</kbd> capture highlight`;
+  }
+  // Tell the server the effective pair so the web shortcuts modal shows
+  // the same cues (built-in or the user's rebind). Best-effort only.
+  async function reportHotkeys() {
+    try {
+      const hk = await invoke('get_hotkeys');
+      const base = server || localStorage.getItem('postyUrl') || 'http://127.0.0.1:3000';
+      await fetch(base + '/api/desktop/state', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ dump: hk.dump, highlight: hk.highlight }) });
+    } catch { /* server unreachable — cues still work locally */ }
+  }
+  (async () => {
+    try {
+      const hk = await invoke('get_hotkeys');
+      if (hk?.dump && hk?.highlight) renderHotkeyHint(hk.dump, hk.highlight);
+      reportHotkeys();
+    } catch { /* browser preview keeps the static defaults */ }
+  })();
+  function paintHkState(hk) {
+    const rows = [['hk-state-dump', hk.dump_registered], ['hk-state-hl', hk.highlight_registered]];
+    for (const [id, on] of rows) {
+      const el = $(id);
+      if (!el || on === undefined) continue;
+      el.textContent = on ? '● active' : '○ not registered';
+      el.className = `hk-state ${on ? 'on' : 'off'}`;
+    }
+    if (hk.dump_registered === false || hk.highlight_registered === false) {
+      say('A hotkey is not registered — another app (or a second Posty) may hold it. Pick another combo.', 'err');
+    }
+  }
+  const hkWrap = $('hk-wrap');
+  hkWrap.addEventListener('toggle', async () => {
+    if (!hkWrap.open) return;
+    try {
+      const hk = await invoke('get_hotkeys');
+      $('f-hk-dump').value = hk.dump;
+      $('f-hk-hl').value = hk.highlight;
+      paintHkState(hk);
+    } catch { /* browser preview */ }
+  });
+  $('btn-hk-save').addEventListener('click', async () => {
+    const dump = $('f-hk-dump').value.trim();
+    const highlight = $('f-hk-hl').value.trim();
+    say('Saving hotkeys…');
+    try {
+      await invoke('set_hotkeys', { dump, highlight });
+      const hk = await invoke('get_hotkeys');
+      renderHotkeyHint(hk.dump, hk.highlight);
+      paintHkState(hk);
+      reportHotkeys();
+      const allOn = hk.dump_registered !== false && hk.highlight_registered !== false;
+      say(allOn ? 'Hotkeys updated — they work immediately.' : 'Saved, but a hotkey did not register — see above.', allOn ? 'ok' : 'err');
+    } catch (err) { say(err?.message || String(err), 'err'); }
+  });
+
+  $('btn-sidebar').addEventListener('click', async () => {
+    try { await invoke('open_widget'); } catch { window.open(server + '/#/today', '_blank'); }
+  });
+  $('btn-hide').addEventListener('click', hideOverlay);
+  $('btn-quit').addEventListener('click', async () => { stopRec(); try { await invoke('quit_app'); } catch { window.close(); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideOverlay(); });
+</script>
+</body>
+</html>

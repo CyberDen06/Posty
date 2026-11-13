@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Posty — find relevant industry stories, add your take, draft channel-specific posts, schedule with Buffer.">
+  <title>Posty — your content research agent</title>
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#1d4d2b">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+</head>
+<body>
+  <a class="skip" href="#view">Skip to content</a>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="#/today" aria-label="Posty home">
+        <span class="brand-mark" aria-hidden="true">P</span>
+        <span class="brand-name">Posty</span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="#/today" data-nav="today">Today</a>
+        <a href="#/ask" data-nav="ask">Ask</a>
+        <a href="#/ideas" data-nav="ideas">Ideas</a>
+        <a href="#/drafts" data-nav="drafts">Drafts</a>
+        <a href="#/calendar" data-nav="calendar">Calendar</a>
+        <a href="#/routine" data-nav="routine">Routine</a>
+        <a href="#/sources" data-nav="sources">Sources</a>
+        <a href="#/settings" data-nav="settings">Settings</a>
+      </nav>
+      <div id="connect-slot" class="connect-slot"></div>
+    </div>
+  </header>
+  <div id="notice-slot"></div>
+  <main id="view" class="wrap" tabindex="-1"></main>
+  <footer class="wrap footer">
+    <p>Posty is a thoughtful assistant, not an autoposter. Nothing is scheduled without your explicit approval. <a href="#" id="shortcuts-link">Keyboard shortcuts (?)</a></p>
+  </footer>
+  <div id="modal-root"></div>
+  <div id="toast-root" class="toast-root" aria-live="polite" aria-atomic="false"></div>
+  <script src="/app.js" type="module"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+    }
+  </script>
+</body>
+</html>

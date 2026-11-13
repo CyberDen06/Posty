@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; font-family: system-ui, "Segoe UI", sans-serif; background: #f3eee1; color: #23272a; }
+  header { display: flex; gap: 6px; padding: 10px; background: #fbf9f3; border-bottom: 1px solid #ddd5c0; align-items: center; }
+  header button { flex: 1; border: 1px solid #ddd5c0; background: #fff; border-radius: 7px; padding: 7px 4px; font-weight: 650; font-size: 12px; cursor: pointer; color: #5a625e; }
+  header button[aria-current="page"] { background: #1d4d2b; border-color: #1d4d2b; color: #fff; }
+  header button.icon { flex: 0 0 auto; padding: 7px 10px; }
+  iframe { width: 100%; height: calc(100% - 53px); border: 0; background: #f3eee1; }
+  .offline { padding: 24px 18px; font-size: 13px; }
+  .offline code { background: #efe9d8; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <button data-route="#/today" aria-current="page">Today</button>
+  <button data-route="#/ideas">Ideas</button>
+  <button data-route="#/drafts">Drafts</button>
+  <button class="icon" id="open-full" title="Open full app">↗</button>
+</header>
+<iframe id="frame" title="Posty"></iframe>
+<div class="offline" id="offline" hidden>
+  <p><strong>Posty server not reachable.</strong></p>
+  <p>Start it with <code>npm start</code>, or set your deployed URL in the extension options.</p>
+  <p><a href="#" id="open-options">Open options</a> · <a href="#" id="retry">Retry</a></p>
+</div>
+<script src="sidepanel.js"></script>
+</body>
+</html>

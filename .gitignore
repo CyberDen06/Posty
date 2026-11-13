@@ -1,0 +1,9 @@
+node_modules/
+data/
+.env
+*.log
+desktop/src-tauri/target/
+.vercel
+Thumbs.db
+.DS_Store
+desktop/screenshots/
