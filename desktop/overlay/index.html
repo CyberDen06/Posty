@@ -72,8 +72,6 @@
   <details>
     <summary>Server</summary>
     <input type="text" id="f-server" placeholder="http://127.0.0.1:3000">
-    <label for="f-token">Link token (to share one workspace with a deployment — same value as web Settings)</label>
-    <input type="password" id="f-token" placeholder="Optional for local use" autocomplete="off">
     <div class="row"><button class="btn secondary" id="btn-quit">Quit Posty desktop</button></div>
   </details>
 </div>
@@ -106,17 +104,6 @@
     server = e.target.value.trim().replace(/\/$/, '') || 'http://127.0.0.1:3000';
     localStorage.setItem('postyUrl', server);
   });
-  $('f-token').value = localStorage.getItem('postyToken') || '';
-  $('f-token').addEventListener('change', (e) => {
-    localStorage.setItem('postyToken', e.target.value.trim());
-    say(e.target.value.trim() ? 'Link token saved — captures now land in the linked workspace.' : 'Link token cleared — captures use the local workspace.', 'ok');
-  });
-  // Attach the link token when set so overlay saves land in the same
-  // workspace the web app sees (required for cloud servers).
-  const linkHeaders = (extra = {}) => {
-    const t = localStorage.getItem('postyToken') || '';
-    return t ? { ...extra, 'x-posty-token': t } : extra;
-  };
 
   function say(msg, kind = '') {
     const el = $('status');
@@ -156,7 +143,7 @@
   }, 250);
 
   async function postJson(path, body) {
-    const res = await fetch(server + path, { method: 'POST', headers: linkHeaders({ 'content-type': 'application/json' }), body: JSON.stringify(body) });
+    const res = await fetch(server + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
     return data;
@@ -211,7 +198,7 @@
       for (const c of chunks) { flat.set(c, o); o += c.length; }
       say('Transcribing…');
       try {
-        const res = await fetch(server + '/api/voice/transcribe', { method: 'POST', headers: linkHeaders({ 'content-type': 'audio/wav' }), body: encodeWav(flat, rate), signal: AbortSignal.timeout(150000) });
+        const res = await fetch(server + '/api/voice/transcribe', { method: 'POST', headers: { 'content-type': 'audio/wav' }, body: encodeWav(flat, rate), signal: AbortSignal.timeout(150000) });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || `Transcription failed (${res.status})`);
         const escT = (s) => String(s ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
@@ -222,7 +209,7 @@
           say('Saving…');
           try {
             const first = text.split(/(?<=[.!?])\s+/)[0] || text;
-            const res2 = await fetch(server + '/api/captures', { method: 'POST', headers: linkHeaders({ 'content-type': 'application/json' }), body: JSON.stringify({ type: 'voice', title: first.length > 70 ? first.slice(0, 67) + '…' : first, text }) });
+            const res2 = await fetch(server + '/api/captures', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'voice', title: first.length > 70 ? first.slice(0, 67) + '…' : first, text }) });
             const payload = await res2.json().catch(() => ({}));
             if (!res2.ok) throw new Error(payload.error || `Could not save (${res2.status})`);
             $('voice-result').innerHTML = '';

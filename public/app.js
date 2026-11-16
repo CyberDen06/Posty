@@ -6,23 +6,10 @@ const toastRoot = document.getElementById('toast-root');
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// Companion link token: lets this browser join the same workspace as the
-// desktop companion on a deployed site. localStorage only, never committed.
-let linkToken = null;
-try { linkToken = localStorage.getItem('posty-link-token') || null; } catch { /* private mode */ }
-function setLinkToken(t) {
-  linkToken = t || null;
-  try {
-    if (t) localStorage.setItem('posty-link-token', t);
-    else localStorage.removeItem('posty-link-token');
-  } catch { /* private mode */ }
-}
-
 async function api(path, { method = 'GET', body, timeoutMs } = {}) {
   let res;
   try {
     const headers = body !== undefined ? { 'content-type': 'application/json' } : {};
-    if (linkToken) headers['x-posty-token'] = linkToken;
     res = await fetch(path, {
       method,
       headers,
@@ -156,7 +143,7 @@ function renderChrome() {
   }
   const notices = [];
   if (!me.oauthConfigured) {
-    notices.push(`<div class="notice"><div class="notice-inner mock"><strong>Demo scheduling mode:</strong> Buffer OAuth is not configured on this server, so scheduling is simulated and clearly labeled. Stories and drafts use live data.</div></div>`);
+    notices.push(`<div class="notice"><div class="notice-inner mock"><strong>Demo scheduling mode:</strong> Buffer isn't connected here yet, so scheduling is simulated and clearly labeled. Stories and drafts use live data.</div></div>`);
   }
   if (me.needsReauth) {
     notices.push(`<div class="notice"><div class="notice-inner mock"><strong>Buffer reconnect needed:</strong> your authorization expired or was revoked. <a href="/auth/buffer/start">Reconnect Buffer</a> to keep scheduling.</div></div>`);
@@ -889,7 +876,7 @@ async function viewIdeas() {
       : `
       <div id="voice-box">
         ${me.voiceReady === false
-          ? '<p class="missing">Voice transcription needs an LLM API key on the server — typing works regardless.</p>'
+          ? '<p class="missing">Voice transcription is not available right now — typing works regardless.</p>'
           : `<p class="hint">Press record, talk through the idea (up to 2 minutes), then stop. Your words are transcribed and saved as an idea.</p>
              <div class="btn-row"><button class="btn" id="voice-rec">Record</button><span class="draft-meta" id="voice-status" role="status"></span></div>
              <div id="voice-result"></div>`}
@@ -1240,43 +1227,13 @@ async function viewSettings() {
         ? `<p>Connected${me.organization ? ` to <strong>${esc(me.organization.name)}</strong>` : ''}. Scheduling calls the real Buffer API.</p><div class="btn-row"><button class="btn danger" id="prefs-disconnect">Disconnect Buffer</button></div>`
         : me.oauthConfigured
           ? '<p>Not connected. Connect to enable real scheduling.</p><div class="btn-row"><a class="btn" href="/auth/buffer/start">Connect Buffer</a></div>'
-          : '<p><span class="badge mock">Demo scheduling mode</span> The server has no Buffer OAuth app configured, so scheduling is simulated.</p>'}
-    </div>
-    <div class="card">
-      <h2 style="margin-top:0">Companion link</h2>
-      <p class="lede">To see your desktop companion’s captures in this workspace on a deployed site, both need the same link. Enter a token you created on the server here, then the same token in the companion’s Server/token settings.</p>
-      ${linkToken
-        ? `<p>Linked with a saved token (<span class="mono">${esc(linkToken.slice(0, 4))}…</span>). Your captures land in this workspace.</p><div class="btn-row"><button class="btn secondary" id="link-forget">Unlink companion</button></div>`
-        : `<label class="stack">Link token<input id="link-token" class="input" type="password" autocomplete="off" placeholder="paste token from server owner"></label><div class="btn-row"><button class="btn" id="link-save">Link companion</button></div><p class="draft-meta" id="link-status"></p>`}
+          : '<p><span class="badge mock">Demo scheduling mode</span> Buffer is not connected here yet, so scheduling is simulated.</p>'}
     </div>`;
   await viewSetup(p, document.getElementById('prefs-editor'), { heading: '', submitLabel: 'Save settings', stay: true });
   document.getElementById('prefs-disconnect')?.addEventListener('click', async () => {
     await api('/api/auth/disconnect', { method: 'POST' });
     await refreshMe();
     route();
-  });
-  document.getElementById('link-forget')?.addEventListener('click', async () => {
-    setLinkToken(null);
-    await refreshMe();
-    route();
-  });
-  document.getElementById('link-save')?.addEventListener('click', async () => {
-    const input = document.getElementById('link-token');
-    const status = document.getElementById('link-status');
-    const token = input?.value.trim();
-    if (!token) { if (status) status.textContent = 'Paste the token first.'; return; }
-    try {
-      if (status) status.textContent = 'Linking…';
-      // Verify against the server before storing: wrong tokens must not stick.
-      const res = await fetch('/api/link/adopt', { method: 'POST', headers: { 'content-type': 'application/json', 'x-posty-token': token }, body: '{}' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `Not accepted (${res.status})`);
-      setLinkToken(token);
-      await refreshMe();
-      route();
-    } catch (e) {
-      if (status) status.textContent = `Couldn’t link: ${e.message}`;
-    }
   });
 }
 
@@ -1411,7 +1368,7 @@ async function viewAsk() {
       if (heard && transcript) heard.value = transcript; // heard words stay editable for re-ask
       return;
     }
-    if (me.voiceReady === false) { askError = 'Voice needs an LLM API key on the server — typing works regardless.'; draw(); return; }
+    if (me.voiceReady === false) { askError = 'Voice is not available right now — typing works regardless.'; draw(); return; }
     if (!navigator.mediaDevices?.getUserMedia) { askError = 'This browser does not expose a microphone here — type instead.'; draw(); return; }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
