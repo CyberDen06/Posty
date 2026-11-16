@@ -1,23 +1,12 @@
 # Posty — your content research agent
 
-Posty helps busy professionals find relevant industry developments, add their
+Posty helps busy professionals find relevant industry developments or trends in their niche, add their
 own perspective, turn them into channel-specific social drafts, and schedule
-approved drafts through **Buffer**. Built for the **Buffer Commit 2026**
-hackathon.
+approved drafts through **Buffer**. 
 
-Principles: Posty is a thoughtful assistant. You control your profession, 
+Principles: Posty is a thoughtful, always-on content assistant. You control your profession, 
 interests, point of view, wording, and approval. 
-
-## Submission checklist (Buffer Commit 2026)
-
-- **Works end to end:** setup → discovery → take → drafts → approve → confirm →
-  scheduled. (5–10 minutes, zero keys).
-- **Buffer OAuth:** Authorization Code + PKCE, confidential client; no
-  key-paste UI anywhere, secrets server-side only.
-- **Real API calls:** live GraphQL `createPost` (queue + scheduled modes) and
-  channel lookup against the connected account; every result is labeled real
-  vs demo, and typed mutation errors are surfaced, not just HTTP status.
-
+  
 ## Quick start
 
 Requirements: Node.js 18+ (developed on Node 24). Zero npm dependencies.
@@ -31,11 +20,11 @@ If the port is taken, the server prints the
 exact commands to free it instead of a stack trace.
 
 On Windows, `npm start` also launches the **desktop companion** (sidebar with
-global hotkeys): straight away if it's built, otherwise it builds in the
-background when Rust is installed. `POSTY_NO_DESKTOP=1` opts out; see
+global hotkeys - CTRL + SHIFT + Space to toggle on/off): straight away if it's built, otherwise it builds in the
+background when Rust is installed. `POSTY_NO_DESKTOP=1` opts out; see 
 `desktop/README.md`.
 
-On first run you pick a profession, select/edit interests, and set tone and
+On first run, you pick a profession, select/edit interests, and set tone and
 length. Everything else flows from there: Today → story → your take → drafts →
 approve → confirm → scheduled. 
 
@@ -46,18 +35,17 @@ approve → confirm → scheduled.
 2. In **Today**, press **Find stories** — live stories with genuine links,
    sources, dates, faithful summaries, and a “why this matches you” line.
 3. Open a story: drafts generate for your preferred channels, one tab each.
-   Answer the **grounded take-questions** (written about that story's own
-   claims click one to start answering), save your take, then **Refine with
-   my perspective** for a draft weaving the summary with your whole take.
+add your take, and press **Refine with my perspective** to get
+   a refined draft grounded in your words (the initial version is kept)
    Edit, restore, duplicate, delete, or skip each
-   channel independently.
-4. In **Ask**, question anything by text or voice. Briefs with links arrive, each
+   channel independently. 
+5. In **Ask**, question anything by text or voice. Briefs with links arrive, each
    openable into the same take → draft → refine flow.
-5. In **Ideas**, brain-dump by typing or speaking; filter by origin. In **Sources**, see every
-   connector's honest status, pause providers, or load the labeled demo.
+6. In **Ideas**, brain-dump by typing or speaking; filter by origin. In **Sources**, see every
+   connector's honest status, pause providers, or load the labelled demo.
    **Routine** runs on demand only; **Calendar** shows the week, filters,
    and cadence progress.
-6. Press **Approve & add to Buffer queue** on one draft: pick a **Buffer
+7. Press **Approve & add to Buffer queue** on one draft: pick a **Buffer
    channel**, choose queue or a specific time, see the **exact text** you are
    approving, then **Confirm**.
    The result states plainly whether scheduling was **real (Buffer)** or
@@ -66,16 +54,17 @@ approve → confirm → scheduled.
 ## Buffer OAuth setup (required for real scheduling)
 
 Posty connects through Buffer OAuth and makes real GraphQL calls. Without
-this setup the app runs in clearly labeled **demo scheduling mode**.
+this setup, the app runs in clearly labelled **demo scheduling mode**.
 
 1. In Buffer, go to Settings → API and register an OAuth app (confidential
    client). Buffer requires **https** redirect URIs — plain `http://localhost`
    is rejected, which surfaces as a generic error page and no callback.
-   Add posty's redirect URI: posty-three.vercel.app, and your local host's redirect URI if you're running it locally. 
-2. Copy `.env.example` to `.env` and set `BUFFER_CLIENT_ID`,
+   Add Posty's redirect URI: https://posty-three.vercel.app/auth/buffer/callback, and your local host's redirect URI,
+   e.g., (https:localhost:3000/auth/buffer/callback)if you're running it locally. 
+3. Copy `.env.example` to `.env` and set `BUFFER_CLIENT_ID`,
    `BUFFER_CLIENT_SECRET`, and `BUFFER_REDIRECT_URI` (must match the registered
    URI exactly). Set a long random `SESSION_SECRET`.
-3. Local TLS: the app serves http on `PORT` plus https on `TLS_PORT`
+4. Local TLS: the app serves http on `PORT` plus https on `TLS_PORT`
    (default 3443) when a localhost certificate is configured — either
    `TLS_PFX` (+ `TLS_PASSPHRASE`) or `TLS_KEY`/`TLS_CERT` (PEM files).
    On Windows, mint one with no extra tools:
@@ -83,21 +72,20 @@ this setup the app runs in clearly labeled **demo scheduling mode**.
    then export it to `data/certs/localhost.pfx` (git-ignored) and point
    `TLS_PFX` at it. The browser shows one self-signed warning during
    Connect; click through and OAuth completes normally.
-4. Restart the server and press **Connect Buffer**. Scheduling a draft now calls
+5. Restart the server and press **Connect Buffer**. Scheduling a draft now calls
    the real Buffer API against your account and channels.
 
 No key-paste UI exists anywhere: secrets stay server-side in env vars.
 
 ## Real vs demo behavior
 
-- **Story search:** always live (Hacker News + GDELT + Reddit inspiration; Exa
-  joins when keyed). No fabricated stories. Provider hiccups appear as honest
-  warnings, never invented fill-ins.
+- **Story search:** always live (Hacker News + GDELT + Reddit inspiration + Exa).
+   No fabricated stories. Provider hiccups appear as honest warnings. 
 - **Drafts / snapshots / take-questions:** Uses Meta's Muse when it is configured,
   otherwise the built-in template engine. The UI never claims AI it didn't use.
 - **Voice:** Muse transcription when configured; otherwise the mic states
   plainly that a key is needed and typing works regardless. 
-- **Scheduling:** real Buffer calls when OAuth is configured and you connected;
+- **Scheduling:** real Buffer calls when OAuth is configured and you're connected;
   otherwise simulated and labeled “Demo scheduling — NOT sent to Buffer”.
 - **Routine:** settings + “Run routine now” only. The saved cadence is labeled
   on-demand; no background job runs. 
@@ -182,9 +170,7 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
 - [ ] Ask: typed question returns briefed stories with links; voice asks
       transcribe first (words stay editable), then search; history persists;
       each result opens the perspective → draft → refine flow.
-- [ ] Desktop: `npm start` launches one companion; Space toggles, H captures
-      the exact highlight, Esc hides; Hotkeys section rebinds with live
-      status; web `?` guide mirrors the effective pair.
+- [ ] Desktop: `npm start` launches one companion; CTRL + SHIFT + Space toggles the companion, highlight a text you'd like to capture as a content idea and hit CTRL + SHIFT + h and the highlighted text is copied straight into your ideas (first shown in Posty's sidebar companion for editing/approval), Esc hides the companion; You can also create your own custom hotkeys to trigger the desktop companion. 
 - [ ] Extension: options shows effective bindings; rebind path documented.
 - [ ] Mobile: manifest + icons + share target (`POST /api/share-target`
       with title/text/url → 303 to Ideas with a saved capture).
@@ -192,33 +178,13 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
 - [ ] Calendar: planned/unplanned groups, filters, rescheduling, cadence
       progress, routine inbox section.
 - [ ] Sources: live/paused/unavailable/disconnected states honest; provider
-      pause affects discovery; demo seed/clear labeled.
+      pause affects discovery; demo seed/clear labeled. 
 - [ ] Routine: interests/day/time/batch/channels/pause; on-demand runs only;
       no duplicates; never auto-schedules.
-- [ ] Approve → confirm (exact channel + text, queue or scheduled time,
-      sticky buttons) → queue; real vs demo labeled; failures preserve
+- [ ] Approve → confirm (exact channel + text, queue or scheduled a time) → queue; real vs demo labeled; failures preserve
       drafts with retry; no double-scheduling.
 - [ ] Never-post topics filter discovery and block drafting with an explanation.
 - [ ] Neutral drafts contain no first-person experience claims (`npm test`).
-
-## Operating cost
-
-List prices at build time (verify on the dashboards before budgeting):
-
-| Action | Price | Notes |
-|---|---|---|
-| Ask / Find search (Exa, when keyed) | ~$0.007 | One `/search auto` call per find/ask, cached 30 min; $10/mo free credits ≈ 1,400 searches |
-| Article brief per Exa story | ~$0.001 | One batched `/contents` summary call per find/ask, cached 24 h; failures fall back to highlights free |
-| Keyless providers (HN, GDELT, Reddit) | $0 | Rate-limited, not billed |
-| Channel draft (Muse Spark 1.3) | ~$0.003–0.009 | Lazy: only opened stories; reasoning included |
-| Take-questions per story | ~$0.003–0.008 | One call per opened story/note, cached 24 h; generic fallback free |
-| Comment snapshot | ~$0.002–0.005 | Only for HN discussions without excerpts |
-| Voice (transcribe 2-min note) | ~$0.006 | $0.18/hour of audio; one retry on transient failures |
-
-A daily habit (5 asks, a few opened stories with questions, 4 drafts, a couple
-of voice notes) lands around **$2–3/month**, inside Exa's free tier. Server
-logs print per-call usage (`[posty] llm …`, `[posty] exa …`, `[posty] voice …`)
-plus daily counters, so spend stays visible.
 
 ## Limitations
 
