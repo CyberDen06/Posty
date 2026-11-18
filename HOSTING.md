@@ -52,6 +52,7 @@ Copy `.env.example` to `.env` (git-ignored; never commit secrets):
 | `LLM_API_KEY` / `LLM_ENDPOINT` / `LLM_MODEL` | Muse drafting + snapshots + take-questions (unset = built-in template engine) |
 | `LLM_VOICE_MODEL` | Voice transcription model override |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Vercel KV store (auto-set when you connect a KV database) |
+| `CRON_SECRET` | Guards `GET /api/cron/routine` for scheduled runs (unset = on-demand only) |
 | `POSTY_URL` / `POSTY_HOTKEY_*` / `POSTY_NO_DESKTOP` | Desktop companion targeting and hotkey overrides |
 
 ## Buffer OAuth setup (required for real scheduling)
@@ -92,6 +93,22 @@ Without this setup the app runs in clearly labeled **demo scheduling mode**.
 
 A `Dockerfile` is included for single-instance VM hosting (`/data` volume).
 
+## Scheduled routines (optional)
+
+Routines run on demand from the app. For automatic weekly runs:
+
+1. Set a long random `CRON_SECRET` on the server (and redeploy).
+2. Repo → Settings → Secrets and variables → Actions: add `POSTY_URL`
+   (e.g. `https://<your-app>.vercel.app`) and the same `CRON_SECRET`.
+3. The [.github/workflows/routine-cron.yml](.github/workflows/routine-cron.yml)
+   workflow calls `GET /api/cron/routine` weekly (Mondays 09:00 UTC by
+   default — align it with the routine's delivery day/time). It also runs on
+   demand via "Run workflow". The endpoint refuses paused, empty, or
+   recently-run routines, and a run only adds briefing suggestions — it never
+   schedules or publishes. Keep the routine batch small (≤2 stories):
+   serverless functions have execution time limits, and a run that times out
+   simply adds nothing — check the function logs if briefings stop landing.
+
 ## Desktop companion with a deployed server
 
 Point the overlay at the app URL — in the overlay Server box or via the `POSTY_URL` env var — and its captures land in the shared workspace the browser sees. No per-client setup.
@@ -109,8 +126,8 @@ Note: on hosts whose internal hop presents a loopback address (e.g. Vercel), fir
   plainly that a key is needed and typing works regardless.
 - **Scheduling:** real Buffer calls when OAuth is configured and connected;
   otherwise simulated and labeled "Demo scheduling — NOT sent to Buffer".
-- **Routine:** settings + "Run routine now" only. The saved cadence is labeled
-  on-demand; no background job runs.
+- **Routine:** settings + "Run routine now", plus an optional scheduled hook
+  (GitHub Actions + CRON_SECRET; without it the cadence stays on-demand). Never auto-schedules.
 
 ## Story providers (technical)
 
@@ -188,8 +205,12 @@ plus daily counters, so spend stays visible.
       progress, routine inbox section.
 - [ ] Sources: live/paused/unavailable/disconnected states honest; provider
       pause affects discovery; demo seed/clear labeled.
-- [ ] Routine: interests/day/time/batch/channels/pause; on-demand runs only;
-      no duplicates; never auto-schedules.
+- [ ] Routine: interests/day/time/batch/channels/pause; scheduled hook
+      (CRON_SECRET + Actions secrets) or on-demand; no duplicates;
+      never auto-schedules.
+- [ ] Learning: opt-in records approvals/skips; “Tuned to you” drafts after 3
+      kept; Settings inspects/clears; “Try alternative” offers new phrasing.
+- [ ] Onboarding: Today banner tracks 8 steps; `npm run onboard` reports setup.
 - [ ] Approve → confirm (exact channel + text, queue or scheduled time,
       sticky buttons) → queue; real vs demo labeled; failures preserve
       drafts with retry; no double-scheduling.
@@ -200,8 +221,8 @@ plus daily counters, so spend stays visible.
 
 - File-backed store: local/demo + single-instance only; no multi-user auth
   beyond per-session isolation + Buffer OAuth.
-- No background scheduler: routine cadence/day/time are configured but runs
-  happen on demand only.
+- No built-in background scheduler: automatic runs need the external cron hook
+  (GitHub Actions workflow + CRON_SECRET); otherwise runs are on-demand only.
 - Desktop companion is Windows-only, needs Rust to build, and needs the
   server running; global hotkeys need the companion running (single instance).
 - GDELT and Reddit rate-limit aggressively; Hacker News usually carries the
@@ -229,6 +250,9 @@ lib/
   llm.js           Muse boundary (drafts + snapshots + questions; template fallback)
   desktop.js       Desktop companion auto-launch (single-instance guarded)
   routine.js       Routine settings + on-demand runs (neutral drafts)
+  learn.js         Opt-in style learning (shape stats, inspectable, clearable)
+  cron.js          Scheduled routine hook (secret-guarded, same bounded runs)
+  onboard.js       Onboarding checklist derived from workspace state
   professions.js   Professions, interests, tones, channels, pillars
   session.js       Signed-cookie sessions (isolation boundary = session)
   store.js         Per-user store: local files or Vercel KV (REST, no SDK)

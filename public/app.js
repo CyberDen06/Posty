@@ -392,6 +392,7 @@ async function viewToday(params) {
     const dismissed = todayState.items.length - visible.length;
     view.innerHTML = `<h1>Today</h1>
       <p class="lede">Your briefing: recent stories matched to your interests. Every story arrives with an initial draft — open it, add your take, and refine.</p>
+      <div id="onboard-slot"></div>
       <div class="card">
         ${chipRow('find-chips', 'Search these interests', p.interests, todayState.findInterests)}
         <div class="btn-row">
@@ -407,6 +408,15 @@ async function viewToday(params) {
       <div id="story-list">${visible.map((i) => itemCard(i)).join('')}</div>
       ${dismissed ? `<p class="draft-meta">${dismissed} dismissed stor${dismissed > 1 ? 'ies' : 'y'} hidden.</p>` : ''}`;
 
+    api('/api/onboarding').then((ob) => {
+      const slot = document.getElementById('onboard-slot');
+      if (!slot || ob.dismissed || ob.complete || !ob.next) return;
+      slot.innerHTML = `<div class="card"><p><strong>Getting started · ${ob.done} of ${ob.total}</strong></p><p>Next up: <a href="${esc(ob.next.href)}">${esc(ob.next.label)}</a></p><div class="btn-row"><button class="btn small ghost" id="onboard-hide">Hide this</button></div></div>`;
+      document.getElementById('onboard-hide').addEventListener('click', async () => {
+        await api('/api/onboarding/dismiss', { method: 'POST' }).catch(() => {});
+        slot.innerHTML = '';
+      });
+    }).catch(() => {});
     bindChips(view, 'find-chips', todayState.findInterests);
     document.getElementById('find-btn')?.addEventListener('click', async () => {
       if (!todayState.findInterests.size) return toast('Select at least one interest to search.', 'error');
@@ -636,6 +646,7 @@ async function viewStory(id) {
         <span class="badge status-${d.status}">${esc(d.status)}</span>
         <span class="badge">${esc(d.origin === 'refined' ? 'refined with your take' : 'initial draft')}</span>
         ${d.engine === 'llm' ? '<span class="badge">LLM-assisted</span>' : '<span class="badge">Suggested wording</span>'}
+        ${(d.influences || []).includes('tuned to your approvals') ? '<span class="badge">Tuned to you</span>' : ''}
         ${d.pillar ? `<span class="badge">${esc(d.pillar)}</span>` : ''}
       </div>
       ${draftSourceLine()}
@@ -665,6 +676,7 @@ async function viewStory(id) {
       <div class="btn-row">
         ${editing !== d.id ? `<button class="btn small secondary" data-act="edit">Edit</button>` : ''}
         <button class="btn small secondary" data-act="refine">${refining === d.id ? 'Close refine' : 'Refine'}</button>
+        <button class="btn small secondary" data-act="variant">Try alternative</button>
         <button class="btn small secondary" data-act="duplicate">Duplicate</button>
         <button class="btn small secondary" data-act="feedback">Add notes</button>
         <button class="btn small ghost" data-act="skip">Skip</button>
@@ -699,6 +711,12 @@ async function viewStory(id) {
       if (planned) await api(`/api/drafts/${d.id}`, { method: 'PATCH', body: { plannedDate: planned } }).catch((err) => toast(err.message, 'error'));
       const r = await refresh(() => api(`/api/drafts/${d.id}/regenerate`, { method: 'POST', body: payload }));
       if (r) toast(item.perspective.text || item.perspective.reaction ? 'Refined with your perspective. Previous version kept.' : 'Regenerated (still neutral — add a take to ground it).', 'success');
+      else e.target.disabled = false;
+    });
+    body.querySelector('[data-act="variant"]')?.addEventListener('click', async (e) => {
+      e.target.disabled = true;
+      const r = await refresh(() => api(`/api/drafts/${d.id}/variant`, { method: 'POST' }));
+      if (r) toast('Alternative phrasing ready — previous version kept in history.', 'success');
       else e.target.disabled = false;
     });
     body.querySelector('[data-act="refine"]')?.addEventListener('click', () => { refining = refining === d.id ? null : d.id; drawDrafts(); });
@@ -1094,7 +1112,7 @@ async function viewRoutine() {
   function draw() {
     view.innerHTML = `<h1>Content routine</h1>
       <p class="lede">Have story-and-draft suggestions delivered to your Inbox. A routine never schedules or publishes — it only suggests.</p>
-      <div class="notice-inner" style="margin-bottom:1rem"><strong>On-demand in this build:</strong> the cadence, day, and time below are saved, but runs happen only when you choose “Run routine now”. No background job runs on a schedule.</div>
+      ${routine.cronConfigured ? '<div class="notice-inner" style="margin-bottom:1rem"><strong>Scheduled runs armed:</strong> the cron hook is configured — an external scheduler (GitHub Actions, see HOSTING.md) runs this routine weekly. “Run routine now” still works any time. The routine only suggests; it never schedules or publishes.</div>' : '<div class="notice-inner" style="margin-bottom:1rem"><strong>On-demand:</strong> runs happen only when you choose “Run routine now”. For automatic weekly runs, set CRON_SECRET and add the GitHub Actions secrets (see HOSTING.md).</div>'}
       <form id="routine-form" class="card">
         ${chipRow('r-int-chips', 'Use these interests', p.interests, new Set(routine.interests))}
         <div class="grid-2">
@@ -1215,6 +1233,42 @@ async function viewSources() {
   });
 }
 
+// --- Style learning panel (Settings) ---------------------------------------------
+async function drawLearnPanel() {
+  const slot = document.getElementById('learn-panel');
+  if (!slot) return;
+  let data;
+  try {
+    data = await api('/api/learning');
+  } catch (err) {
+    slot.innerHTML = `<div class="card"><h2 style="margin-top:0">Style learning</h2><p class="missing">Couldn’t load learning state (${esc(err.message)}).</p></div>`;
+    return;
+  }
+  const s = data.profile;
+  slot.innerHTML = `<div class="card">
+    <h2 style="margin-top:0">Style learning</h2>
+    <p class="hint">When on, Posty notes only the <em>shape</em> of drafts you approve, schedule, skip, or delete — typical length, opening style, per-channel keep rates. No story facts or private text are stored, and drafts never claim experience you didn’t give.</p>
+    <label class="field" style="display:flex;gap:0.6rem;align-items:center"><input type="checkbox" id="learn-toggle" ${data.enabled ? 'checked' : ''}> <span>Learn from my approvals and skips</span></label>
+    <p class="draft-meta">Signal: ${s.kept} kept · ${s.counts.skipped} skipped · ${s.counts.deleted} deleted.${s.ready ? ` Personalizing new drafts (near ${s.preferredChars} chars).` : ` ${s.needed} more kept draft${s.needed === 1 ? '' : 's'} before personalizing.`}</p>
+    ${s.topOpeners.length ? `<p class="draft-meta">Frequent approved openings: ${s.topOpeners.map((o) => `“${esc(o.opener)}…”`).join(', ')}</p>` : ''}
+    <div class="btn-row"><button class="btn small ghost" id="learn-clear">Clear learning</button></div>
+  </div>`;
+  slot.querySelector('#learn-toggle').addEventListener('change', async (e) => {
+    try {
+      prefsCache = await api('/api/preferences', { method: 'PUT', body: { learnFromUse: e.target.checked } });
+      toast(e.target.checked ? 'Style learning on — future drafts tune to your approvals.' : 'Style learning off — nothing new is recorded.', 'success');
+      drawLearnPanel();
+    } catch (err) { toast(err.message, 'error'); e.target.checked = !e.target.checked; }
+  });
+  slot.querySelector('#learn-clear').addEventListener('click', async () => {
+    try {
+      await api('/api/learning', { method: 'DELETE' });
+      toast('Learning cleared.');
+      drawLearnPanel();
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
 // --- Settings ------------------------------------------------------------------
 async function viewSettings() {
   const p = await prefs();
@@ -1230,6 +1284,8 @@ async function viewSettings() {
           : '<p><span class="badge mock">Demo scheduling mode</span> Buffer is not connected here yet, so scheduling is simulated.</p>'}
     </div>`;
   await viewSetup(p, document.getElementById('prefs-editor'), { heading: '', submitLabel: 'Save settings', stay: true });
+  view.insertAdjacentHTML('beforeend', '<div id="learn-panel"></div>');
+  drawLearnPanel();
   document.getElementById('prefs-disconnect')?.addEventListener('click', async () => {
     await api('/api/auth/disconnect', { method: 'POST' });
     await refreshMe();

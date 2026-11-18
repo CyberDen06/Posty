@@ -1,6 +1,6 @@
 // Posty service worker: offline shell for the static app, network-first for API.
 // v1 — bump CACHE to invalidate.
-const CACHE = 'posty-shell-v1';
+const CACHE = 'posty-shell-v2';
 const SHELL = ['/', '/index.html', '/app.js', '/styles.css', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {

@@ -1,0 +1,32 @@
+# Scheduled Posty routine briefing. Runs the owner's saved routine (bounded
+# story search + neutral draft suggestions) and lands the results in the
+# shared workspace inbox. Never schedules or publishes anything.
+#
+# Setup (2 minutes, secrets stay in GitHub — never in this file):
+#   1. Repo → Settings → Secrets and variables → Actions → New secret:
+#      POSTY_URL = your deployment, e.g. https://posty-three.vercel.app
+#      CRON_SECRET = the same value as the server's CRON_SECRET env var
+#   2. Align the schedule below with the routine's delivery day/time in Posty
+#      (both are UTC here; the app compares in server-local time).
+name: Posty routine briefing
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Mondays 09:00 UTC
+  workflow_dispatch: {} # manual "Run workflow" for testing
+
+jobs:
+  routine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger scheduled routine
+        env:
+          POSTY_URL: ${{ secrets.POSTY_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$POSTY_URL" || { echo "Set the POSTY_URL repo secret (e.g. https://your-app.vercel.app)"; exit 1; }
+          test -n "$CRON_SECRET" || { echo "Set the CRON_SECRET repo secret (same value as the server env var)"; exit 1; }
+          curl --fail --show-error --max-time 540 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "${POSTY_URL%/}/api/cron/routine"

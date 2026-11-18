@@ -37,8 +37,8 @@ approve → confirm → scheduled.
 3. Open a story: drafts generate for your preferred channels, one tab each.
 add your take, and press **Refine with my perspective** to get
    a refined draft grounded in your words (the initial version is kept)
-   Edit, restore, duplicate, delete, or skip each
-   channel independently. 
+   Edit, restore, duplicate, delete, skip, or try an alternative for
+   each channel independently.
 5. In **Ask**, question anything by text or voice. Briefs with links arrive, each
    openable into the same take → draft → refine flow.
 6. In **Ideas**, brain-dump by typing or speaking; filter by origin. In **Sources**, see every
@@ -87,8 +87,8 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
   plainly that a key is needed and typing works regardless. 
 - **Scheduling:** real Buffer calls when OAuth is configured and you're connected;
   otherwise simulated and labeled “Demo scheduling — NOT sent to Buffer”.
-- **Routine:** settings + “Run routine now” only. The saved cadence is labeled
-  on-demand; no background job runs. 
+- **Routine:** settings + “Run routine now”, plus an optional scheduled hook
+  (server owner adds CRON_SECRET + GitHub secrets; otherwise on-demand).
 
 ## Story providers
 
@@ -122,6 +122,10 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
 - **Style references** are strictly opt-in: paste 1–2 samples of your own
   writing plus style notes, and enable the toggle to let drafts mirror your
   openings and length. Posty never clones your voice automatically.
+- **Style learning** (Settings, opt-in) notes only the shape of drafts you
+  keep or pass on — typical length, opening style — and tunes new drafts
+  after 3 approvals. Inspect or clear it any time; drafts with the
+  “Tuned to you” badge used it.
 
 ## Capture companions (desktop, extension, mobile)
 
@@ -133,12 +137,12 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
   Rebind live from the overlay's Hotkeys section (validated, instant,
   persisted; per-key active/not-registered status shown), or via
   `POSTY_HOTKEY_DUMP` / `POSTY_HOTKEY_HIGHLIGHT`. The web shortcuts guide
-  (`?`) shows the overlay's effective pair live. Point it at a deployed
-  server with `POSTY_URL`, and join that server's workspace with a companion
-  link token: set `OVERLAY_TOKENS` on the server, paste the same token into
-  the deployed site's Settings → Companion link and the overlay's
-  Server/token dialog. (Local dev needs no token — same-machine clients
-  already share the local workspace.)
+  (`?`) shows the overlay's effective pair live. Point the overlay at a
+  deployed server with `POSTY_URL` — captures land in the shared workspace
+  the browser sees, with no per-client setup. (Local dev just works:
+  same-machine clients already share the local workspace. See HOSTING.md
+  for the deployed-workspace tradeoff notes, the optional scheduled
+  routine hook, and the full env-var table.)
 - **Browser extension (`extension/`, Chrome/Edge):** side panel with
   Today/Ideas/Drafts, a keyboard shortcut or right-click to send a highlight
   to Ideas. Effective bindings are shown in the extension's options page
@@ -179,8 +183,12 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
       progress, routine inbox section.
 - [ ] Sources: live/paused/unavailable/disconnected states honest; provider
       pause affects discovery; demo seed/clear labeled. 
-- [ ] Routine: interests/day/time/batch/channels/pause; on-demand runs only;
-      no duplicates; never auto-schedules.
+- [ ] Routine: interests/day/time/batch/channels/pause; scheduled hook
+      (CRON_SECRET + Actions secrets) or on-demand; no duplicates;
+      never auto-schedules.
+- [ ] Learning: opt-in records approvals/skips; “Tuned to you” drafts after 3
+      kept; Settings inspects/clears; “Try alternative” offers new phrasing.
+- [ ] Onboarding: Today banner tracks 8 steps; `npm run onboard` reports setup.
 - [ ] Approve → confirm (exact channel + text, queue or scheduled a time) → queue; real vs demo labeled; failures preserve
       drafts with retry; no double-scheduling.
 - [ ] Never-post topics filter discovery and block drafting with an explanation.
@@ -190,8 +198,8 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
 
 - File-backed store: local/demo + single-instance only; no multi-user auth
   beyond per-session isolation + Buffer OAuth.
-- No background scheduler: routine cadence/day/time are configured but runs
-  happen on demand only.
+- No built-in background scheduler: automatic runs need the server owner's
+  cron hook (see HOSTING.md); otherwise runs are on-demand only.
 - Desktop companion is Windows-only, needs Rust to build, and needs the
   server running; global hotkeys need the companion running (single instance).
 - GDELT and Reddit rate-limit aggressively; Hacker News usually carries the
@@ -219,6 +227,9 @@ lib/
   llm.js           Muse boundary (drafts + snapshots + questions; template fallback)
   desktop.js       Desktop companion auto-launch (single-instance guarded)
   routine.js       Routine settings + on-demand runs (neutral drafts)
+  learn.js         Opt-in style learning (shape stats, inspectable, clearable)
+  cron.js          Scheduled routine hook (secret-guarded, same bounded runs)
+  onboard.js       Onboarding checklist derived from workspace state
   professions.js   Professions, interests, tones, channels, pillars
   session.js       Signed-cookie sessions (isolation boundary = session)
   store.js         Per-user store: local files or Vercel KV (REST, no SDK)
