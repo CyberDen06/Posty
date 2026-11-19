@@ -4,6 +4,12 @@
     { "source": "/api/:path*", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/api/index" }
   ],
+  "crons": [
+    {
+      "path": "/api/cron/routine",
+      "schedule": "0 9 * * 1"
+    }
+  ],
   "functions": {
     "api/index.js": {
       "includeFiles": "public/**"

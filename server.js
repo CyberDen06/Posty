@@ -29,6 +29,12 @@ listenWithHelp(http.createServer(handler), PORT, 'HTTP', () => {
   // Judges (and users) get the sidebar without hunting for it: launch the
   // desktop companion alongside the server. Opt out: POSTY_NO_DESKTOP=1.
   if (shouldAutoLaunchDesktop()) ensureDesktop();
+  // Automatic routines while the server runs (local/VM hosting): the saved
+  // routine runs itself after its delivery slot. Vercel never executes this
+  // file and uses vercel.json crons instead. Opt out: POSTY_NO_SCHEDULER=1.
+  if (!process.env.POSTY_NO_SCHEDULER && !process.env.VERCEL) {
+    import('./lib/cron.js').then(({ startLocalScheduler }) => startLocalScheduler({ log: console.log }));
+  }
   // Judging convenience: open the app on interactive local boots. Never on
   // Vercel; POSTY_NO_OPEN=1 opts out (scripts, tests).
   if (process.stdout.isTTY && !process.env.VERCEL && !process.env.POSTY_NO_OPEN) {

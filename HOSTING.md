@@ -52,7 +52,8 @@ Copy `.env.example` to `.env` (git-ignored; never commit secrets):
 | `LLM_API_KEY` / `LLM_ENDPOINT` / `LLM_MODEL` | Muse drafting + snapshots + take-questions (unset = built-in template engine) |
 | `LLM_VOICE_MODEL` | Voice transcription model override |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Vercel KV store (auto-set when you connect a KV database) |
-| `CRON_SECRET` | Guards `GET /api/cron/routine` for scheduled runs (unset = on-demand only) |
+| `CRON_SECRET` | Optional strict mode for the routine hook (unset = automatic scheduling) |
+| `POSTY_NO_SCHEDULER` | Set to 1 to disable the local hourly routine ticker |
 | `POSTY_URL` / `POSTY_HOTKEY_*` / `POSTY_NO_DESKTOP` | Desktop companion targeting and hotkey overrides |
 
 ## Buffer OAuth setup (required for real scheduling)
@@ -93,21 +94,25 @@ Without this setup the app runs in clearly labeled **demo scheduling mode**.
 
 A `Dockerfile` is included for single-instance VM hosting (`/data` volume).
 
-## Scheduled routines (optional)
+## Scheduled routines (automatic)
 
-Routines run on demand from the app. For automatic weekly runs:
+No setup: configure a routine in the app and it runs itself.
 
-1. Set a long random `CRON_SECRET` on the server (and redeploy).
-2. Repo → Settings → Secrets and variables → Actions: add `POSTY_URL`
-   (e.g. `https://<your-app>.vercel.app`) and the same `CRON_SECRET`.
-3. The [.github/workflows/routine-cron.yml](.github/workflows/routine-cron.yml)
-   workflow calls `GET /api/cron/routine` weekly (Mondays 09:00 UTC by
-   default — align it with the routine's delivery day/time). It also runs on
-   demand via "Run workflow". The endpoint refuses paused, empty, or
-   recently-run routines, and a run only adds briefing suggestions — it never
-   schedules or publishes. Keep the routine batch small (≤2 stories):
-   serverless functions have execution time limits, and a run that times out
-   simply adds nothing — check the function logs if briefings stop landing.
+- **Deployed (Vercel):** `vercel.json` crons call `GET /api/cron/routine`
+
+  weekly (Mondays ~09:00 UTC — Hobby timing is within the hour). The
+
+  due-check runs the briefing after the routine's delivery slot; paused,
+  empty, and recently-run routines refuse. A run only adds briefing
+  suggestions — it never schedules or publishes. Keep the batch small
+  (≤2 stories): serverless functions have execution time limits, and a run
+  that times out simply adds nothing — check the function logs.
+- **Local/VM (`npm start`):** the server ticks hourly while it runs and
+  briefs after the delivery slot. Opt out: `POSTY_NO_SCHEDULER=1`.
+Advanced: set `CRON_SECRET` to lock the hook (callers must present it)
+and drive it from your own scheduler — the [.github/workflows/routine-cron.yml](.github/workflows/routine-cron.yml)
+workflow is kept for that. Note: setting the secret disables the automatic
+Vercel calls, which cannot send one.
 
 ## Desktop companion with a deployed server
 
@@ -126,8 +131,8 @@ Note: on hosts whose internal hop presents a loopback address (e.g. Vercel), fir
   plainly that a key is needed and typing works regardless.
 - **Scheduling:** real Buffer calls when OAuth is configured and connected;
   otherwise simulated and labeled "Demo scheduling — NOT sent to Buffer".
-- **Routine:** settings + "Run routine now", plus an optional scheduled hook
-  (GitHub Actions + CRON_SECRET; without it the cadence stays on-demand). Never auto-schedules.
+- **Routine:** settings + "Run routine now" + automatic weekly runs
+  (Vercel Cron deployed, hourly ticker locally). Never auto-schedules.
 
 ## Story providers (technical)
 
@@ -205,9 +210,9 @@ plus daily counters, so spend stays visible.
       progress, routine inbox section.
 - [ ] Sources: live/paused/unavailable/disconnected states honest; provider
       pause affects discovery; demo seed/clear labeled.
-- [ ] Routine: interests/day/time/batch/channels/pause; scheduled hook
-      (CRON_SECRET + Actions secrets) or on-demand; no duplicates;
-      never auto-schedules.
+- [ ] Routine: interests/day/time/batch/channels/pause; automatic runs
+      (Vercel cron / local ticker); no duplicates; never auto-schedules.
+      (disable via POSTY_NO_SCHEDULER=1; CRON_SECRET locks the hook).
 - [ ] Learning: opt-in records approvals/skips; “Tuned to you” drafts after 3
       kept; Settings inspects/clears; “Try alternative” offers new phrasing.
 - [ ] Onboarding: Today banner tracks 8 steps; `npm run onboard` reports setup.
@@ -221,8 +226,8 @@ plus daily counters, so spend stays visible.
 
 - File-backed store: local/demo + single-instance only; no multi-user auth
   beyond per-session isolation + Buffer OAuth.
-- No built-in background scheduler: automatic runs need the external cron hook
-  (GitHub Actions workflow + CRON_SECRET); otherwise runs are on-demand only.
+- Automatic routines need the server running (local ticker) or a Vercel
+  deployment (weekly cron); a stopped local server briefs nothing.
 - Desktop companion is Windows-only, needs Rust to build, and needs the
   server running; global hotkeys need the companion running (single instance).
 - GDELT and Reddit rate-limit aggressively; Hacker News usually carries the

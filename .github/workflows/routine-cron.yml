@@ -1,6 +1,10 @@
-# Scheduled Posty routine briefing. Runs the owner's saved routine (bounded
-# story search + neutral draft suggestions) and lands the results in the
-# shared workspace inbox. Never schedules or publishes anything.
+# ADVANCED / OPTIONAL — you do NOT need this for automatic routines. Vercel
+# deployments (vercel.json crons) and local servers (hourly ticker) already
+# run the saved routine with zero setup. Use this workflow only to drive the
+# hook from your own scheduler (e.g. a custom cadence), with CRON_SECRET set
+# on the server (strict mode) and mirrored in repo secrets below. It runs the
+# owner's saved routine (bounded search + neutral drafts) into the shared
+# workspace inbox. Never schedules or publishes anything.
 #
 # Setup (2 minutes, secrets stay in GitHub — never in this file):
 #   1. Repo → Settings → Secrets and variables → Actions → New secret:

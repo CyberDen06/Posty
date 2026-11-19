@@ -13,7 +13,7 @@ test.after(() => {
   delete process.env.CRON_SECRET;
 });
 
-const { cronSecretOk, isDue, CRON_MIN_GAP_HOURS } = await import('../lib/cron.js');
+const { cronSecretOk, cronLocked, isDue, startLocalScheduler, CRON_MIN_GAP_HOURS } = await import('../lib/cron.js');
 const { handleNodeRequest } = await import('../lib/app.js');
 
 function mockRes() {
@@ -101,7 +101,7 @@ test('isDue fires once per weekly slot, after the delivery moment', () => {
   }
 });
 
-test('cron endpoint requires the secret', async () => {
+test('strict mode (CRON_SECRET set): wrong or missing secret is rejected', async () => {
   const bad = await call(jsonReq({ method: 'GET', url: '/api/cron/routine?secret=nope' }));
   assert.equal(bad.status, 401);
   const missing = await call(jsonReq({ method: 'GET', url: '/api/cron/routine' }));
@@ -121,8 +121,44 @@ test('cron endpoint reports skip reasons without running providers', async () =>
   assert.equal(empty.json.reason, 'no-interests');
 });
 
-test('routine settings expose whether the cron hook is configured', async () => {
+test('routine settings expose the scheduler state', async () => {
   const data = await call(jsonReq({ method: 'GET', url: '/api/routine' }));
   assert.equal(data.status, 200);
   assert.equal(data.json.cronConfigured, true);
+  assert.equal(data.json.scheduler, 'external'); // CRON_SECRET set in this file → locked
+});
+
+test('open mode (no CRON_SECRET): unsigned calls reach the due-check, wrong secrets still rejected', async () => {
+  delete process.env.CRON_SECRET;
+  try {
+    const open = await call(jsonReq({ method: 'GET', url: '/api/cron/routine' }));
+    assert.equal(open.status, 200);
+    assert.equal(open.json.ran, false);
+    const wrong = await call(jsonReq({ method: 'GET', url: '/api/cron/routine?secret=guessed' }));
+    assert.equal(wrong.status, 401);
+    const data = await call(jsonReq({ method: 'GET', url: '/api/routine' }));
+    assert.equal(data.json.scheduler, 'local'); // no Vercel, no opt-out in tests
+  } finally {
+    process.env.CRON_SECRET = 'test-cron-secret';
+  }
+});
+
+test('cronLocked tracks the strict-mode switch only', () => {
+  process.env.CRON_SECRET = 'x';
+  assert.equal(cronLocked(), true);
+  delete process.env.CRON_SECRET;
+  assert.equal(cronLocked(), false);
+  process.env.CRON_SECRET = 'test-cron-secret';
+});
+
+test('local scheduler ticks, reports skip reasons, and stops', async () => {
+  const lines = [];
+  const stop = startLocalScheduler({ intervalMs: 40, delayMs: 10, log: (m) => lines.push(m) });
+  await new Promise((r) => setTimeout(r, 300));
+  assert.ok(lines.length >= 2, `expected repeated ticks, got ${lines.length}`);
+  assert.ok(lines.every((l) => /scheduler tick ran=false reason=no-interests/.test(l)));
+  stop();
+  const frozen = lines.length;
+  await new Promise((r) => setTimeout(r, 150));
+  assert.equal(lines.length, frozen);
 });
