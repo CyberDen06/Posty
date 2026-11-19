@@ -1135,12 +1135,12 @@ async function viewRoutine() {
   let runMsg = null;
   let runErr = null;
   function draw() {
-    const cadenceWord = routine.cadence === 'daily' ? 'every day' : 'every week';
     view.innerHTML = `<h1>Content routine</h1>
-      <p class="lede">Have story-and-draft suggestions delivered to your Inbox. A routine never schedules or publishes — it only suggests.</p>
-      ${{ vercel: '<div class="notice-inner" style="margin-bottom:1rem"><strong>Runs automatically:</strong> this deployment briefs you ${cadenceWord} after your delivery slot — no setup needed. “Run routine now” still works any time. The routine only suggests; it never schedules or publishes.</div>', local: '<div class="notice-inner" style="margin-bottom:1rem"><strong>Runs automatically while the server is on:</strong> leave Posty running and your briefing runs at each delivery slot. “Run routine now” works any time. The routine only suggests; it never schedules or publishes.</div>', external: '<div class="notice-inner" style="margin-bottom:1rem"><strong>External scheduler mode:</strong> the routine hook is locked with CRON_SECRET, so automatic runs come from your own scheduler (see HOSTING.md). “Run routine now” still works any time.</div>', off: '<div class="notice-inner" style="margin-bottom:1rem"><strong>On-demand:</strong> automatic runs are disabled on this server (POSTY_NO_SCHEDULER). “Run routine now” still works any time.</div>' }[routine.scheduler || 'off']}
+      <p class="lede">Have story-and-draft suggestions delivered to your Inbox. A routine never schedules or publishes.</p>
       <form id="routine-form" class="card">
-        ${chipRow('r-int-chips', 'Use these interests', p.interests, new Set(routine.interests))}
+        <div class="field"><span class="label">Interests</span>
+          ${p.interests.length ? `<p class="draft-meta">Synced with Settings: ${p.interests.map((i) => esc(i)).join(' · ')}</p>` : '<p class="missing">No interests yet — add some in Settings to enable the routine.</p>'}
+          <p><a href="#/settings">Edit interests in Settings</a></p></div>
         <div class="grid-2">
           <label class="field"><span class="label">Cadence</span><select id="r-cadence"><option value="weekly" ${routine.cadence !== 'daily' ? 'selected' : ''}>Weekly</option><option value="daily" ${routine.cadence === 'daily' ? 'selected' : ''}>Daily</option></select></label>
           <div class="field">${chipRow('r-day-chips', 'Delivery days', meta.weekdays, new Set(routine.deliveryDays))}<p class="hint">Weekly: a briefing after each selected day's slot. Daily: every day.</p></div>
@@ -1160,8 +1160,6 @@ async function viewRoutine() {
         ${runErr ? `<div class="error-box" role="alert"><h3>Run failed</h3><p>${esc(runErr)}</p></div>` : ''}
         <div class="btn-row"><button class="btn" id="run-btn" ${running ? 'disabled' : ''}>${running ? 'Running…' : 'Run routine now'}</button></div>
       </div>`;
-    const rInterests = new Set(routine.interests);
-    bindChips(view, 'r-int-chips', rInterests);
     const rDays = new Set(routine.deliveryDays);
     bindChips(view, 'r-day-chips', rDays);
     const rChannels = new Set(routine.channels);
@@ -1188,7 +1186,7 @@ async function viewRoutine() {
       if (!rDays.size) { e.preventDefault(); return toast('Pick at least one delivery day.', 'error'); }
       e.preventDefault();
       try {
-        const data = await api('/api/routine', { method: 'PUT', body: { interests: [...rInterests], cadence: document.getElementById('r-cadence').value, deliveryDays: [...rDays], deliveryTime: document.getElementById('r-time').value, batchSize: Number(document.getElementById('r-batch').value), paused: document.getElementById('r-paused').checked, channels: [...rChannels] } });
+        const data = await api('/api/routine', { method: 'PUT', body: { cadence: document.getElementById('r-cadence').value, deliveryDays: [...rDays], deliveryTime: document.getElementById('r-time').value, batchSize: Number(document.getElementById('r-batch').value), paused: document.getElementById('r-paused').checked, channels: [...rChannels] } });
         Object.assign(routine, data);
         draw();
         toast('Routine saved.', 'success');

@@ -134,8 +134,8 @@ Note: on hosts whose internal hop presents a loopback address (e.g. Vercel), fir
   plainly that a key is needed and typing works regardless.
 - **Scheduling:** real Buffer calls when OAuth is configured and connected;
   otherwise simulated and labeled "Demo scheduling — NOT sent to Buffer".
-- **Routine:** settings + "Run routine now" + automatic runs (daily/weekly)
-  (Vercel Cron deployed, hourly ticker locally). Never auto-schedules.
+- **Routine:** synced interests + "Run routine now" + automatic runs (daily/weekly)
+  (Vercel Cron deployed, exact-slot wakeups locally). Never auto-schedules.
 
 ## Story providers (technical)
 
@@ -213,9 +213,9 @@ plus daily counters, so spend stays visible.
       progress, routine inbox section.
 - [ ] Sources: live/paused/unavailable/disconnected states honest; provider
       pause affects discovery; demo seed/clear labeled.
-- [ ] Routine: interests/cadence/days/time/batch/channels/pause; automatic
-      (Vercel cron / local ticker); no duplicates; never auto-schedules.
-      (disable via POSTY_NO_SCHEDULER=1; CRON_SECRET locks the hook).
+- [ ] Routine: synced interests + cadence/days/time/batch/channels/pause;
+      automatic (Vercel cron / exact-slot wakeups); no duplicates.
+      never auto-schedules; POSTY_NO_SCHEDULER=1 disables, CRON_SECRET locks.
 - [ ] Learning: opt-in records approvals/skips; “Tuned to you” drafts after 3
       kept; Settings inspects/clears; “Try alternative” offers new phrasing.
 - [ ] Onboarding: Today banner tracks 8 steps; `npm run onboard` reports setup.
