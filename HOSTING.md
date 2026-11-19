@@ -100,9 +100,9 @@ No setup: configure a routine in the app and it runs itself.
 
 - **Deployed (Vercel):** `vercel.json` crons call `GET /api/cron/routine`
 
-  weekly (Mondays ~09:00 UTC — Hobby timing is within the hour). The
+  daily (~09:00 UTC — Hobby timing is within the hour); the due-check keeps
 
-  due-check runs the briefing after the routine's delivery slot; paused,
+  weekly routines weekly and daily ones daily, after each delivery slot;
   empty, and recently-run routines refuse. A run only adds briefing
   suggestions — it never schedules or publishes. Keep the batch small
   (≤2 stories): serverless functions have execution time limits, and a run
@@ -131,7 +131,7 @@ Note: on hosts whose internal hop presents a loopback address (e.g. Vercel), fir
   plainly that a key is needed and typing works regardless.
 - **Scheduling:** real Buffer calls when OAuth is configured and connected;
   otherwise simulated and labeled "Demo scheduling — NOT sent to Buffer".
-- **Routine:** settings + "Run routine now" + automatic weekly runs
+- **Routine:** settings + "Run routine now" + automatic runs (daily/weekly)
   (Vercel Cron deployed, hourly ticker locally). Never auto-schedules.
 
 ## Story providers (technical)
@@ -210,7 +210,7 @@ plus daily counters, so spend stays visible.
       progress, routine inbox section.
 - [ ] Sources: live/paused/unavailable/disconnected states honest; provider
       pause affects discovery; demo seed/clear labeled.
-- [ ] Routine: interests/day/time/batch/channels/pause; automatic runs
+- [ ] Routine: interests/cadence/days/time/batch/channels/pause; automatic
       (Vercel cron / local ticker); no duplicates; never auto-schedules.
       (disable via POSTY_NO_SCHEDULER=1; CRON_SECRET locks the hook).
 - [ ] Learning: opt-in records approvals/skips; “Tuned to you” drafts after 3

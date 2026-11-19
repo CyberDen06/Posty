@@ -16,7 +16,7 @@ name: Posty routine briefing
 
 on:
   schedule:
-    - cron: '0 9 * * 1' # Mondays 09:00 UTC
+    - cron: '0 9 * * *' # Daily 09:00 UTC — the due-check keeps weekly routines weekly
   workflow_dispatch: {} # manual "Run workflow" for testing
 
 jobs:

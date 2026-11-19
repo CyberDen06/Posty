@@ -43,7 +43,7 @@ add your take, and press **Refine with my perspective** to get
    openable into the same take → draft → refine flow.
 6. In **Ideas**, brain-dump by typing or speaking; filter by origin. In **Sources**, see every
    connector's honest status, pause providers, or load the labelled demo.
-   **Routine** runs itself weekly; **Calendar** shows the week, filters,
+   **Routine** runs itself (daily or weekly); **Calendar** shows the week, filters,
    and cadence progress.
 7. Press **Approve & add to Buffer queue** on one draft: pick a **Buffer
    channel**, choose queue or a specific time, see the **exact text** you are
@@ -87,7 +87,7 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
   plainly that a key is needed and typing works regardless. 
 - **Scheduling:** real Buffer calls when OAuth is configured and you're connected;
   otherwise simulated and labeled “Demo scheduling — NOT sent to Buffer”.
-- **Routine:** settings + “Run routine now” + automatic weekly runs
+- **Routine:** settings + “Run routine now” + automatic runs (daily/weekly)
   (zero setup — Vercel Cron deployed, hourly ticker locally).
 
 ## Story providers
@@ -183,7 +183,7 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
       progress, routine inbox section.
 - [ ] Sources: live/paused/unavailable/disconnected states honest; provider
       pause affects discovery; demo seed/clear labeled. 
-- [ ] Routine: interests/day/time/batch/channels/pause; automatic runs
+- [ ] Routine: interests/cadence/days/time/batch/channels/pause; automatic
       (Vercel cron / local ticker); no duplicates; never auto-schedules.
       (disable via POSTY_NO_SCHEDULER=1; CRON_SECRET locks the hook).
 - [ ] Learning: opt-in records approvals/skips; “Tuned to you” drafts after 3

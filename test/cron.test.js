@@ -162,3 +162,31 @@ test('local scheduler ticks, reports skip reasons, and stops', async () => {
   await new Promise((r) => setTimeout(r, 150));
   assert.equal(lines.length, frozen);
 });
+
+test('isDue runs daily cadences once per day, after the slot', () => {
+  const now = new Date();
+  now.setHours(10, 0, 0, 0);
+  const base = { cadence: 'daily', interests: ['x'], deliveryTime: '09:00' };
+  const yesterday = new Date(now.getTime() - 24 * 3600 * 1000).toISOString();
+  assert.equal(isDue({ ...base, lastRunAt: yesterday }, now.getTime()).due, true);
+  const twoHoursAgo = new Date(now.getTime() - 2 * 3600 * 1000).toISOString();
+  assert.equal(isDue({ ...base, lastRunAt: twoHoursAgo }, now.getTime()).due, false);
+});
+
+test('isDue honors multiple weekly delivery days', () => {
+  const monday = new Date();
+  monday.setHours(9, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const r = {
+    cadence: 'weekly', interests: ['x'], deliveryDays: ['Monday', 'Thursday'],
+    deliveryTime: '09:00', lastRunAt: new Date(monday.getTime() + 3600 * 1000).toISOString(),
+  };
+  const thu = monday.getTime() + 3 * 86400 * 1000 + 3600 * 1000; // Thu 10:00
+  assert.equal(isDue(r, thu).due, true);
+  const wed = monday.getTime() + 2 * 86400 * 1000 + 3600 * 1000; // Wed 10:00
+  assert.deepEqual(isDue(r, wed).reason, 'not-due');
+});
+
+test('isDue still reads legacy single-day routines', () => {
+  assert.equal(isDue({ cadence: 'weekly', interests: ['x'], deliveryDay: 'Monday', deliveryTime: '09:00' }).due, true);
+});

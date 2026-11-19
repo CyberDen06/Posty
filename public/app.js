@@ -1112,12 +1112,12 @@ async function viewRoutine() {
   function draw() {
     view.innerHTML = `<h1>Content routine</h1>
       <p class="lede">Have story-and-draft suggestions delivered to your Inbox. A routine never schedules or publishes — it only suggests.</p>
-      ${{ vercel: '<div class="notice-inner" style="margin-bottom:1rem"><strong>Runs automatically:</strong> this deployment briefs you every week after your delivery slot — no setup needed. “Run routine now” still works any time. The routine only suggests; it never schedules or publishes.</div>', local: '<div class="notice-inner" style="margin-bottom:1rem"><strong>Runs automatically while the server is on:</strong> leave Posty running and your briefing lands after your delivery slot. “Run routine now” works any time. The routine only suggests; it never schedules or publishes.</div>', external: '<div class="notice-inner" style="margin-bottom:1rem"><strong>External scheduler mode:</strong> the routine hook is locked with CRON_SECRET, so automatic runs come from your own scheduler (see HOSTING.md). “Run routine now” still works any time.</div>', off: '<div class="notice-inner" style="margin-bottom:1rem"><strong>On-demand:</strong> automatic runs are disabled on this server (POSTY_NO_SCHEDULER). “Run routine now” still works any time.</div>' }[routine.scheduler || 'off']}
+      ${{ vercel: '<div class="notice-inner" style="margin-bottom:1rem"><strong>Runs automatically:</strong> this deployment briefs you ${routine.cadence === 'daily' ? 'every day' : 'every week'} after your delivery slot — no setup needed. “Run routine now” still works any time. The routine only suggests; it never schedules or publishes.</div>', local: '<div class="notice-inner" style="margin-bottom:1rem"><strong>Runs automatically while the server is on:</strong> leave Posty running and your briefing lands after your delivery slot. “Run routine now” works any time. The routine only suggests; it never schedules or publishes.</div>', external: '<div class="notice-inner" style="margin-bottom:1rem"><strong>External scheduler mode:</strong> the routine hook is locked with CRON_SECRET, so automatic runs come from your own scheduler (see HOSTING.md). “Run routine now” still works any time.</div>', off: '<div class="notice-inner" style="margin-bottom:1rem"><strong>On-demand:</strong> automatic runs are disabled on this server (POSTY_NO_SCHEDULER). “Run routine now” still works any time.</div>' }[routine.scheduler || 'off']}
       <form id="routine-form" class="card">
         ${chipRow('r-int-chips', 'Use these interests', p.interests, new Set(routine.interests))}
         <div class="grid-2">
-          <label class="field"><span class="label">Cadence</span><select id="r-cadence"><option value="weekly">Weekly</option></select></label>
-          <label class="field"><span class="label">Delivery day</span><select id="r-day">${meta.weekdays.map((d) => `<option ${routine.deliveryDay === d ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
+          <label class="field"><span class="label">Cadence</span><select id="r-cadence"><option value="weekly" ${routine.cadence !== 'daily' ? 'selected' : ''}>Weekly</option><option value="daily" ${routine.cadence === 'daily' ? 'selected' : ''}>Daily</option></select></label>
+          <div class="field">${chipRow('r-day-chips', 'Delivery days', meta.weekdays, new Set(routine.deliveryDays))}<p class="hint">Weekly: a briefing after each selected day's slot. Daily: every day.</p></div>
           <label class="field"><span class="label">Delivery time</span><input type="text" id="r-time" value="${esc(routine.deliveryTime || '09:00')}" aria-label="Delivery time HH:MM"></label>
           <label class="field"><span class="label">Batch size (stories per run)</span><select id="r-batch">${[1, 2, 3, 4].map((n) => `<option value="${n}" ${routine.batchSize === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         </div>
@@ -1135,6 +1135,8 @@ async function viewRoutine() {
       </div>`;
     const rInterests = new Set(routine.interests);
     bindChips(view, 'r-int-chips', rInterests);
+    const rDays = new Set(routine.deliveryDays);
+    bindChips(view, 'r-day-chips', rDays);
     const rChannels = new Set(routine.channels);
     view.querySelectorAll('#r-ch-chips [data-v]').forEach((b) => b.addEventListener('click', () => {
       const id = meta.draftChannels.find((c) => c.label === b.dataset.v)?.id;
@@ -1143,9 +1145,10 @@ async function viewRoutine() {
       b.setAttribute('aria-pressed', rChannels.has(id));
     }));
     document.getElementById('routine-form').addEventListener('submit', async (e) => {
+      if (!rDays.size) { e.preventDefault(); return toast('Pick at least one delivery day.', 'error'); }
       e.preventDefault();
       try {
-        const data = await api('/api/routine', { method: 'PUT', body: { interests: [...rInterests], cadence: 'weekly', deliveryDay: document.getElementById('r-day').value, deliveryTime: document.getElementById('r-time').value, batchSize: Number(document.getElementById('r-batch').value), paused: document.getElementById('r-paused').checked, channels: [...rChannels] } });
+        const data = await api('/api/routine', { method: 'PUT', body: { interests: [...rInterests], cadence: document.getElementById('r-cadence').value, deliveryDays: [...rDays], deliveryTime: document.getElementById('r-time').value, batchSize: Number(document.getElementById('r-batch').value), paused: document.getElementById('r-paused').checked, channels: [...rChannels] } });
         Object.assign(routine, data);
         draw();
         toast('Routine saved.', 'success');
