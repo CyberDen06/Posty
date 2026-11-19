@@ -13,7 +13,7 @@ test.after(() => {
   delete process.env.CRON_SECRET;
 });
 
-const { cronSecretOk, cronLocked, isDue, startLocalScheduler, CRON_MIN_GAP_HOURS } = await import('../lib/cron.js');
+const { cronSecretOk, cronLocked, isDue, nextSlotMs, startLocalScheduler, CRON_MIN_GAP_HOURS } = await import('../lib/cron.js');
 const { handleNodeRequest } = await import('../lib/app.js');
 
 function mockRes() {
@@ -151,16 +151,50 @@ test('cronLocked tracks the strict-mode switch only', () => {
   process.env.CRON_SECRET = 'test-cron-secret';
 });
 
-test('local scheduler ticks, reports skip reasons, and stops', async () => {
+test('local scheduler runs due routines promptly, then stops cleanly', async () => {
+  const calls = [];
   const lines = [];
-  const stop = startLocalScheduler({ intervalMs: 40, delayMs: 10, log: (m) => lines.push(m) });
-  await new Promise((r) => setTimeout(r, 300));
-  assert.ok(lines.length >= 2, `expected repeated ticks, got ${lines.length}`);
-  assert.ok(lines.every((l) => /scheduler tick ran=false reason=no-interests/.test(l)));
+  const stop = startLocalScheduler({
+    delayMs: 10, maxWaitMs: 5000,
+    log: (m) => lines.push(m),
+    readRoutineDoc: async () => ({ interests: ['x'], deliveryDays: ['Monday'], deliveryTime: '09:00' }), // never ran → due
+    runOnce: async () => { calls.push(Date.now()); return { ran: true, added: 1 }; },
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  assert.equal(calls.length, 1);
+  assert.ok(lines.some((l) => /scheduler ran=true added=1/.test(l)));
   stop();
-  const frozen = lines.length;
   await new Promise((r) => setTimeout(r, 150));
-  assert.equal(lines.length, frozen);
+  assert.equal(calls.length, 1);
+});
+
+test('local scheduler stays silent for paused routines but keeps re-checking', async () => {
+  let reads = 0;
+  const calls = [];
+  const stop = startLocalScheduler({
+    delayMs: 10, maxWaitMs: 120,
+    log: () => {},
+    readRoutineDoc: async () => { reads++; return { paused: true, interests: ['x'] }; },
+    runOnce: async () => { calls.push(1); return { ran: true }; },
+  });
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(calls.length, 0);
+  assert.ok(reads >= 2, 're-checks so unpausing takes effect');
+  stop();
+});
+
+test('nextSlotMs finds the next delivery slot across days and times', () => {
+  const mon8 = new Date();
+  mon8.setHours(8, 0, 0, 0);
+  mon8.setDate(mon8.getDate() - ((mon8.getDay() + 6) % 7));
+  const r = { cadence: 'weekly', deliveryDays: ['Monday'], deliveryTime: '09:00' };
+  assert.equal(nextSlotMs(r, mon8.getTime()), mon8.getTime() + 3600 * 1000); // today 09:00
+  assert.equal(nextSlotMs(r, mon8.getTime() + 2 * 3600 * 1000), mon8.getTime() + 7 * 86400 * 1000 + 3600 * 1000); // next Mon
+  const r2 = { ...r, deliveryDays: ['Monday', 'Thursday'] };
+  assert.equal(nextSlotMs(r2, mon8.getTime() + 2 * 3600 * 1000), mon8.getTime() + 3 * 86400 * 1000 + 3600 * 1000); // Thu
+  const night = mon8.getTime() + 14 * 3600 * 1000; // Monday 22:00
+  assert.equal(nextSlotMs({ cadence: 'daily', deliveryTime: '09:00' }, night), mon8.getTime() + 86400 * 1000 + 3600 * 1000); // Tue
+  assert.equal(nextSlotMs({ deliveryDays: ['Monday'], deliveryTime: 'nope' }, mon8.getTime()), mon8.getTime() + 3600 * 1000); // 09:00 fallback
 });
 
 test('isDue runs daily cadences once per day, after the slot', () => {

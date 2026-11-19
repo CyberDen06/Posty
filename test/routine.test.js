@@ -47,3 +47,10 @@ test('coerceRoutine migrates stored legacy docs without losing settings', () => 
   assert.equal(coerceRoutine({ cadence: 'minutely' }).cadence, 'weekly');
   assert.deepEqual(coerceRoutine({ deliveryDays: ['Nope'] }).deliveryDays, ['Monday']);
 });
+
+test('normalizeRoutine keeps valid delivery times, defaults the rest', () => {
+  assert.equal(normalizeRoutine({ deliveryTime: '15:30' }, []).deliveryTime, '15:30');
+  assert.equal(normalizeRoutine({ deliveryTime: '7:30' }, []).deliveryTime, '09:00');
+  assert.equal(normalizeRoutine({ deliveryTime: '' }, []).deliveryTime, '09:00');
+  assert.equal(normalizeRoutine({}, []).deliveryTime, '09:00');
+});

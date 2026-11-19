@@ -156,7 +156,7 @@ test('DELETE /api/inbox/:id removes an idea permanently', async () => {
   assert.equal(missing.statusCode, 404);
 });
 
-test('DELETE /api/inbox/:id refuses ideas with a queued draft', async () => {
+test('DELETE /api/inbox/:id removes ideas even with a queued draft (queue untouched)', async () => {
   const created = await postCapture({ type: 'note', title: 'queued idea', text: 'stays put' });
   const gen = mockRes();
   await handleNodeRequest(
@@ -184,11 +184,43 @@ test('DELETE /api/inbox/:id refuses ideas with a queued draft', async () => {
     bodyReq({ method: 'DELETE', url: `/api/inbox/${created.id}`, json: {} }),
     del,
   );
-  assert.equal(del.statusCode, 409);
-  assert.match(JSON.parse(del.body).error, /queued in Buffer/);
+  assert.equal(del.statusCode, 200);
+  assert.equal(JSON.parse(del.body).hadScheduled, true);
   const inbox = mockRes();
   await handleNodeRequest(getReq('/api/inbox'), inbox);
-  assert.ok(JSON.parse(inbox.body).items.some((i) => i.id === created.id)); // preserved
+  assert.ok(!JSON.parse(inbox.body).items.some((i) => i.id === created.id)); // gone, queue untouched
+});
+
+test('DELETE /api/drafts/:id removes scheduled drafts locally (queue untouched)', async () => {
+  const created = await postCapture({ type: 'note', title: 'queued draft', text: 'bye draft' });
+  const gen = mockRes();
+  await handleNodeRequest(
+    bodyReq({ method: 'POST', url: `/api/inbox/${created.id}/drafts`, json: { channels: ['x'] } }),
+    gen,
+  );
+  const draftId = JSON.parse(gen.body).item.drafts[0].id;
+  const appr = mockRes();
+  await handleNodeRequest(
+    bodyReq({ method: 'POST', url: `/api/drafts/${draftId}/approve`, json: {} }),
+    appr,
+  );
+  const sched = mockRes();
+  await handleNodeRequest(
+    bodyReq({ method: 'POST', url: `/api/drafts/${draftId}/schedule`, json: { confirmToken: JSON.parse(appr.body).confirmToken, idempotencyKey: 'del-draft-1' } }),
+    sched,
+  );
+  assert.equal(JSON.parse(sched.body).draft.status, 'scheduled');
+  const del = mockRes();
+  await handleNodeRequest(
+    bodyReq({ method: 'DELETE', url: `/api/drafts/${draftId}`, json: {} }),
+    del,
+  );
+  assert.equal(del.statusCode, 200);
+  const inbox = mockRes();
+  await handleNodeRequest(getReq('/api/inbox'), inbox);
+  const item = JSON.parse(inbox.body).items.find((i) => i.id === created.id);
+  assert.ok(item, 'idea survives a single-draft delete');
+  assert.ok(!item.drafts.some((d) => d.id === draftId));
 });
 
 test('PATCH /api/inbox/:id rejects unknown ids, empties, and stories', async () => {

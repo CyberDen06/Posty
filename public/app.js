@@ -6,15 +6,19 @@ const toastRoot = document.getElementById('toast-root');
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-async function api(path, { method = 'GET', body, timeoutMs } = {}) {
+async function api(path, { method = 'GET', body, timeoutMs, signal: outerSignal } = {}) {
   let res;
   try {
     const headers = body !== undefined ? { 'content-type': 'application/json' } : {};
+    const timeout = timeoutMs ? AbortSignal.timeout(timeoutMs) : null;
+    const signal = outerSignal && timeout && typeof AbortSignal.any === 'function'
+      ? AbortSignal.any([outerSignal, timeout])
+      : (outerSignal || timeout || undefined);
     res = await fetch(path, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
+      signal,
     });
   } catch (e) {
     if (e?.name === 'TimeoutError' || e?.name === 'AbortError') throw new Error('The server took too long to respond — try again.');
@@ -37,6 +41,26 @@ function toast(message, kind = '') {
   el.textContent = message;
   toastRoot.appendChild(el);
   setTimeout(() => el.remove(), 5200);
+}
+
+async function copyText(t) {
+  try {
+    await navigator.clipboard.writeText(t);
+    return true;
+  } catch { /* fall through to the legacy path */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = t;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch {
+    return false;
+  }
 }
 
 function openModal(html) {
@@ -736,10 +760,11 @@ async function viewStory(id) {
     });
     body.querySelector('[data-act="delete"]')?.addEventListener('click', async () => {
       try {
+        const wasScheduled = d.status === 'scheduled';
         await api(`/api/drafts/${d.id}`, { method: 'DELETE' });
         ({ item } = await api(`/api/inbox/${item.id}`));
         draw();
-        toast('Draft deleted.');
+        toast(wasScheduled ? 'Draft deleted. The queued post stays scheduled in Buffer.' : 'Draft deleted.');
       } catch (err) { toast(err.message, 'error'); }
     });
     body.querySelector('[data-act="skip"]')?.addEventListener('click', async () => {
@@ -1113,13 +1138,14 @@ async function viewRoutine() {
     const cadenceWord = routine.cadence === 'daily' ? 'every day' : 'every week';
     view.innerHTML = `<h1>Content routine</h1>
       <p class="lede">Have story-and-draft suggestions delivered to your Inbox. A routine never schedules or publishes — it only suggests.</p>
-      ${{ vercel: '<div class="notice-inner" style="margin-bottom:1rem"><strong>Runs automatically:</strong> this deployment briefs you ${cadenceWord} after your delivery slot — no setup needed. “Run routine now” still works any time. The routine only suggests; it never schedules or publishes.</div>', local: '<div class="notice-inner" style="margin-bottom:1rem"><strong>Runs automatically while the server is on:</strong> leave Posty running and your briefing lands after your delivery slot. “Run routine now” works any time. The routine only suggests; it never schedules or publishes.</div>', external: '<div class="notice-inner" style="margin-bottom:1rem"><strong>External scheduler mode:</strong> the routine hook is locked with CRON_SECRET, so automatic runs come from your own scheduler (see HOSTING.md). “Run routine now” still works any time.</div>', off: '<div class="notice-inner" style="margin-bottom:1rem"><strong>On-demand:</strong> automatic runs are disabled on this server (POSTY_NO_SCHEDULER). “Run routine now” still works any time.</div>' }[routine.scheduler || 'off']}
+      ${{ vercel: '<div class="notice-inner" style="margin-bottom:1rem"><strong>Runs automatically:</strong> this deployment briefs you ${cadenceWord} after your delivery slot — no setup needed. “Run routine now” still works any time. The routine only suggests; it never schedules or publishes.</div>', local: '<div class="notice-inner" style="margin-bottom:1rem"><strong>Runs automatically while the server is on:</strong> leave Posty running and your briefing runs at each delivery slot. “Run routine now” works any time. The routine only suggests; it never schedules or publishes.</div>', external: '<div class="notice-inner" style="margin-bottom:1rem"><strong>External scheduler mode:</strong> the routine hook is locked with CRON_SECRET, so automatic runs come from your own scheduler (see HOSTING.md). “Run routine now” still works any time.</div>', off: '<div class="notice-inner" style="margin-bottom:1rem"><strong>On-demand:</strong> automatic runs are disabled on this server (POSTY_NO_SCHEDULER). “Run routine now” still works any time.</div>' }[routine.scheduler || 'off']}
       <form id="routine-form" class="card">
         ${chipRow('r-int-chips', 'Use these interests', p.interests, new Set(routine.interests))}
         <div class="grid-2">
           <label class="field"><span class="label">Cadence</span><select id="r-cadence"><option value="weekly" ${routine.cadence !== 'daily' ? 'selected' : ''}>Weekly</option><option value="daily" ${routine.cadence === 'daily' ? 'selected' : ''}>Daily</option></select></label>
           <div class="field">${chipRow('r-day-chips', 'Delivery days', meta.weekdays, new Set(routine.deliveryDays))}<p class="hint">Weekly: a briefing after each selected day's slot. Daily: every day.</p></div>
-          <label class="field"><span class="label">Delivery time</span><input type="text" id="r-time" value="${esc(routine.deliveryTime || '09:00')}" aria-label="Delivery time HH:MM"></label>
+          <label class="field"><span class="label">Delivery time</span><input type="time" id="r-time" value="${esc(routine.deliveryTime || '09:00')}" aria-label="Delivery time"></label>
+          <p class="hint" id="r-time-hint"></p>
           <label class="field"><span class="label">Batch size (stories per run)</span><select id="r-batch">${[1, 2, 3, 4].map((n) => `<option value="${n}" ${routine.batchSize === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         </div>
         ${chipRow('r-ch-chips', 'Draft suggestions for', meta.draftChannels.map((c) => c.label), new Set(meta.draftChannels.filter((c) => routine.channels.includes(c.id)).map((c) => c.label)))}
@@ -1145,6 +1171,19 @@ async function viewRoutine() {
       rChannels.has(id) ? rChannels.delete(id) : rChannels.add(id);
       b.setAttribute('aria-pressed', rChannels.has(id));
     }));
+    const timeHint = () => {
+      const el = document.getElementById('r-time-hint');
+      if (!el) return;
+      const t = document.getElementById('r-time').value || routine.deliveryTime || '09:00';
+      const every = document.getElementById('r-cadence').value === 'daily' ? 'daily' : 'weekly';
+      if (routine.scheduler === 'local') el.textContent = `Runs at ${t} sharp (server clock, ${every}) while Posty is running.`;
+      else if (routine.scheduler === 'vercel') el.textContent = `Runs daily ~09:00 UTC; your ${every} briefing lands at the first check after ${t}.`;
+      else if (routine.scheduler === 'external') el.textContent = `Your scheduler calls the hook; runs fire after ${t} when due.`;
+      else el.textContent = 'Automatic runs are off; “Run routine now” uses these settings.';
+    };
+    document.getElementById('r-time').addEventListener('input', timeHint);
+    document.getElementById('r-cadence').addEventListener('change', timeHint);
+    timeHint();
     document.getElementById('routine-form').addEventListener('submit', async (e) => {
       if (!rDays.size) { e.preventDefault(); return toast('Pick at least one delivery day.', 'error'); }
       e.preventDefault();
@@ -1323,10 +1362,16 @@ async function viewAsk() {
   let askError = '';
   let lastMeta = null; // {warnings, webSearch} — shown for the freshest ask only
   let rec = null;
+  let askCtl = null; // AbortController for the in-flight ask (Stop button)
 
-  function exchangeHtml(g, fresh) {
+  function exchangeHtml(g, n, fresh) {
     return `<section class="ask-block" aria-label="Question and results">
-      <p class="ask-q"><span class="ask-who">You asked</span>${esc(g.query)}${g.via === 'voice' ? ' <span class="badge">Voice</span>' : ''}</p>
+      <p class="ask-q"><span class="ask-who">You asked</span><span>${esc(g.query)}</span>${g.via === 'voice' ? ' <span class="badge">Voice</span>' : ''}
+        <span class="ask-qa"><button type="button" class="btn small ghost" data-ask-edit="${n}">Edit</button><button type="button" class="btn small ghost" data-ask-copy="${n}">Copy</button></span></p>
+      <div class="ask-edit" data-ask-editor="${n}" hidden>
+        <input type="text" value="${esc(g.query)}" maxlength="300" aria-label="Edit question">
+        <div class="btn-row"><button class="btn small" data-ask-save="${n}">Save &amp; ask</button><button class="btn small ghost" data-ask-cancel="${n}">Cancel</button></div>
+      </div>
       ${g.items.length ? g.items.map((i) => itemCard(i)).join('') : '<p class="missing">No fresh results — try rephrasing the question.</p>'}
       ${fresh && lastMeta ? `<p class="draft-meta">Searched ${lastMeta.webSearch ? 'the web (Exa) plus built-in sources' : 'built-in sources (add an Exa key for general web search)'}.${lastMeta.warnings.map((w) => ` Note: ${esc(w.provider)} — ${esc(w.message)}.`).join('')}</p>` : ''}
       <p class="draft-meta">Open a result to read the summary, add your take, and refine drafts.</p>
@@ -1336,7 +1381,7 @@ async function viewAsk() {
     view.innerHTML = `<h1>Ask Posty</h1>
       <p class="lede">Question about a development, trend, or topic? Ask in your own words — Posty searches the internet and returns article briefs with links.</p>
       <div id="ask-thread">
-        ${groups.length ? groups.map((g, n) => exchangeHtml(g, n === groups.length - 1)).join('') : `<div class="card empty"><p>No questions yet — try one below.</p></div>`}
+        ${groups.length ? groups.map((g, n) => exchangeHtml(g, n, n === groups.length - 1)).join('') : `<div class="card empty"><p>No questions yet — try one below.</p></div>`}
         ${busy ? `<div class="card"><p class="loading"><span class="spinner" aria-hidden="true"></span>${esc(busy)}</p></div>` : ''}
         ${askError ? `<div class="error-box" role="alert"><h3>Search didn’t complete</h3><p>${esc(askError)}</p></div>` : ''}
       </div>
@@ -1349,6 +1394,7 @@ async function viewAsk() {
           <input type="text" id="ask-input" maxlength="300" placeholder="Ask about any topic…" aria-label="Ask Posty">
           <button class="btn" id="ask-send" ${busy ? 'disabled' : ''}>Ask</button>
           <button class="btn secondary" id="ask-mic" ${busy ? 'disabled' : ''} title="Ask by voice">${rec ? 'Stop' : 'Mic'}</button>
+          ${busy && !rec ? '<button class="btn danger" id="ask-stop">Stop</button>' : ''}
         </div>
         <p class="draft-meta" id="ask-status" role="status"></p>
       </div>`;
@@ -1359,6 +1405,30 @@ async function viewAsk() {
     document.getElementById('ask-send').addEventListener('click', submitText);
     document.getElementById('ask-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitText(); });
     document.getElementById('ask-mic').addEventListener('click', toggleVoice);
+    document.getElementById('ask-stop')?.addEventListener('click', () => askCtl?.abort());
+    view.querySelectorAll('[data-ask-copy]').forEach((b) => b.addEventListener('click', async () => {
+      const g = groups[Number(b.dataset.askCopy)];
+      if (!g) return;
+      const ok = await copyText(g.query);
+      toast(ok ? 'Question copied.' : 'Copy failed — select the text manually.', ok ? 'success' : 'error');
+    }));
+    view.querySelectorAll('[data-ask-edit]').forEach((b) => b.addEventListener('click', () => {
+      if (busy) { toast('Wait for the current search to finish first.', 'error'); return; }
+      const ed = view.querySelector(`[data-ask-editor="${b.dataset.askEdit}"]`);
+      if (ed) { ed.hidden = false; ed.querySelector('input')?.focus(); }
+    }));
+    view.querySelectorAll('[data-ask-cancel]').forEach((b) => b.addEventListener('click', () => {
+      const ed = view.querySelector(`[data-ask-editor="${b.dataset.askCancel}"]`);
+      if (ed) ed.hidden = true;
+    }));
+    view.querySelectorAll('[data-ask-save]').forEach((b) => b.addEventListener('click', () => {
+      const ed = view.querySelector(`[data-ask-editor="${b.dataset.askSave}"]`);
+      const v = ed?.querySelector('input')?.value.trim();
+      if (!v) { toast('Question must not be empty.', 'error'); return; }
+      if (busy) { toast('Wait for the current search to finish first.', 'error'); return; }
+      document.getElementById('ask-input').value = v;
+      submitText();
+    }));
     window.scrollTo(0, document.body.scrollHeight);
   }
   async function submitText() {
@@ -1367,16 +1437,19 @@ async function viewAsk() {
     if (!query || busy) return;
     busy = 'Searching the internet…';
     askError = '';
+    askCtl = new AbortController();
     draw();
     try {
-      const res = await api('/api/ask', { method: 'POST', body: { query }, timeoutMs: 180000 });
+      const res = await api('/api/ask', { method: 'POST', body: { query }, timeoutMs: 180000, signal: askCtl.signal });
       groups.push({ key: `${res.query} ${new Date().toISOString().slice(0, 16)}`, query: res.query, via: 'text', items: res.items, at: new Date().toISOString() });
       groups = groups.slice(-12);
       lastMeta = { warnings: res.warnings || [], webSearch: res.webSearch };
     } catch (err) {
-      askError = err.message;
+      if (askCtl && askCtl.signal.aborted) toast('Stopped.');
+      else askError = err.message;
     }
     busy = '';
+    askCtl = null;
     draw();
   }
   function stopRec() {
@@ -1396,14 +1469,25 @@ async function viewAsk() {
       let o = 0;
       for (const c of chunks) { flat.set(c, o); o += c.length; }
       busy = 'Transcribing your question…';
+      askCtl = new AbortController();
       draw();
       let transcript = '';
       try {
-        const res2 = await fetch('/api/ask/transcribe', { method: 'POST', headers: { 'content-type': 'audio/wav' }, body: encodeWav(flat, rate), signal: AbortSignal.timeout(150000) });
+        const stopOrTimeout = typeof AbortSignal.any === 'function'
+          ? AbortSignal.any([askCtl.signal, AbortSignal.timeout(150000)])
+          : askCtl.signal;
+        const res2 = await fetch('/api/ask/transcribe', { method: 'POST', headers: { 'content-type': 'audio/wav' }, body: encodeWav(flat, rate), signal: stopOrTimeout });
         const t = await res2.json().catch(() => ({}));
         if (!res2.ok) throw new Error(t.error || `Transcription failed (${res2.status})`);
         transcript = t.transcript;
       } catch (err) {
+        if (askCtl && askCtl.signal.aborted) {
+          busy = '';
+          askCtl = null;
+          draw();
+          toast('Stopped.');
+          return;
+        }
         askError = err?.name === 'TimeoutError' || err?.name === 'AbortError'
           ? 'Transcription took too long — try a shorter question.'
           : err.message;
@@ -1415,14 +1499,16 @@ async function viewAsk() {
       askError = '';
       draw();
       try {
-        const res = await api('/api/ask', { method: 'POST', body: { query: transcript }, timeoutMs: 180000 });
+        const res = await api('/api/ask', { method: 'POST', body: { query: transcript }, timeoutMs: 180000, signal: askCtl.signal });
         groups.push({ key: `${res.query} ${new Date().toISOString().slice(0, 16)}`, query: res.query, via: 'voice', items: res.items, at: new Date().toISOString() });
         groups = groups.slice(-12);
         lastMeta = { warnings: res.warnings || [], webSearch: res.webSearch };
       } catch (err) {
-        askError = err.message;
+        if (askCtl && askCtl.signal.aborted) toast('Stopped.');
+        else askError = err.message;
       }
       busy = '';
+      askCtl = null;
       draw();
       const heard = document.getElementById('ask-input');
       if (heard && transcript) heard.value = transcript; // heard words stay editable for re-ask
@@ -1515,15 +1601,15 @@ document.addEventListener('click', async (e) => {
     const title = card?.querySelector('.story-title')?.textContent?.trim() || 'this idea';
     const close = openModal(`<h2>Delete this idea?</h2>
       <p><strong>${esc(title.slice(0, 120))}</strong></p>
-      <p class="draft-meta">This permanently removes the idea, its perspective, and its drafts. Ideas with a draft queued in Buffer can’t be deleted.</p>
+      <p class="draft-meta">This permanently removes the idea, its perspective, and its drafts. Anything already queued in Buffer stays queued — remove it in Buffer if needed.</p>
       <div class="btn-row"><button class="btn ghost" data-x>Keep it</button><button class="btn danger" data-confirm-del>Delete idea</button></div>`);
     modalRoot.querySelector('[data-x]').addEventListener('click', close);
     modalRoot.querySelector('[data-confirm-del]').addEventListener('click', async (ev) => {
       ev.target.disabled = true;
       try {
-        await api(`/api/inbox/${id}`, { method: 'DELETE' });
+        const delRes = await api(`/api/inbox/${id}`, { method: 'DELETE' });
         close();
-        toast('Idea deleted.');
+        toast(delRes.hadScheduled ? 'Idea deleted. The queued post stays scheduled in Buffer.' : 'Idea deleted.');
         route();
       } catch (err) {
         close();

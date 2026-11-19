@@ -103,12 +103,15 @@ No setup: configure a routine in the app and it runs itself.
   daily (~09:00 UTC — Hobby timing is within the hour); the due-check keeps
 
   weekly routines weekly and daily ones daily, after each delivery slot;
-  empty, and recently-run routines refuse. A run only adds briefing
+  paused, empty, and recently-run routines refuse. A run only adds briefing
   suggestions — it never schedules or publishes. Keep the batch small
   (≤2 stories): serverless functions have execution time limits, and a run
   that times out simply adds nothing — check the function logs.
-- **Local/VM (`npm start`):** the server ticks hourly while it runs and
-  briefs after the delivery slot. Opt out: `POSTY_NO_SCHEDULER=1`.
+  Delivery time is server-local (UTC on Vercel) — convert the owner's local
+  hour. Tightest delivery: set vercel.json's cron hour to the delivery
+  hour (one line, redeploy once) so the check lands right after the slot.
+- **Local/VM (`npm start`):** the server wakes at each delivery slot while
+  it runs — briefings land at the picked time sharp. Opt out: `POSTY_NO_SCHEDULER=1`.
 Advanced: set `CRON_SECRET` to lock the hook (callers must present it)
 and drive it from your own scheduler — the [.github/workflows/routine-cron.yml](.github/workflows/routine-cron.yml)
 workflow is kept for that. Note: setting the secret disables the automatic
@@ -193,7 +196,7 @@ plus daily counters, so spend stays visible.
 - [ ] Ideas: note/link/voice captures save; captures edit (title + text);
       link captures fetch excerpts; private-source review prompt appears
       before drafting; Develop into drafts opens the draft flow; Delete
-      removes with a confirm, and refuses ideas with a queued draft.
+      removes with a confirm, even with queued drafts (queue untouched).
 - [ ] Ideas mic: record → transcribe (staged, timed out, retried) → saved
       voice note with provenance; origin filter lists each kind.
 - [ ] Ask: typed question returns briefed stories with links; voice asks

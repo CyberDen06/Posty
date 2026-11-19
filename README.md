@@ -40,7 +40,8 @@ add your take, and press **Refine with my perspective** to get
    Edit, restore, duplicate, delete, skip, or try an alternative for
    each channel independently.
 5. In **Ask**, question anything by text or voice. Briefs with links arrive, each
-   openable into the same take → draft → refine flow.
+   openable into the same take → draft → refine flow. Stop a running search,
+   edit and re-ask, or copy any question.
 6. In **Ideas**, brain-dump by typing or speaking; filter by origin. In **Sources**, see every
    connector's honest status, pause providers, or load the labelled demo.
    **Routine** runs itself (daily or weekly); **Calendar** shows the week, filters,
@@ -168,11 +169,12 @@ No key-paste UI exists anywhere: secrets stay server-side in env vars.
 - [ ] Ideas: note/link/voice captures save; captures edit (title + text);
       link captures fetch excerpts; private-source review prompt appears
       before drafting; Develop into drafts opens the draft flow; Delete
-      removes with a confirm, and refuses ideas with a queued draft.
+      removes with a confirm, even with queued drafts (queue untouched).
 - [ ] Ideas mic: record → transcribe (staged, timed out, retried) → saved
       voice note with provenance; origin filter lists each kind.
 - [ ] Ask: typed question returns briefed stories with links; voice asks
       transcribe first (words stay editable), then search; history persists;
+      stop/edit/copy on every question;
       each result opens the perspective → draft → refine flow.
 - [ ] Desktop: `npm start` launches one companion; CTRL + SHIFT + Space toggles the companion, highlight a text you'd like to capture as a content idea and hit CTRL + SHIFT + h and the highlighted text is copied straight into your ideas (first shown in Posty's sidebar companion for editing/approval), Esc hides the companion; You can also create your own custom hotkeys to trigger the desktop companion. 
 - [ ] Extension: options shows effective bindings; rebind path documented.
