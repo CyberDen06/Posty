@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test test/providers.test.js test/cors.test.js test/desktop.test.js test/captures.test.js test/prompts.test.js test/voice.test.js test/learn.test.js test/drafts.test.js test/cron.test.js test/buffer.test.js test/onboard.test.js test/routine.test.js",
+    "test": "node --test test/providers.test.js test/cors.test.js test/desktop.test.js test/captures.test.js test/prompts.test.js test/voice.test.js test/learn.test.js test/drafts.test.js test/cron.test.js test/buffer.test.js test/onboard.test.js test/routine.test.js test/syntax.test.js",
     "desktop:build": "cargo build --manifest-path desktop/src-tauri/Cargo.toml",
     "onboard": "node scripts/onboard.mjs"
   },
